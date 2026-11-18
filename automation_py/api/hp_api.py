@@ -24,3 +24,14 @@ def get_purchase_request(session, request_code: str, department_id: str) -> dict
         if record.get("requestCode") == request_code:
             return record
     return None
+
+def get_purchase_request_page(session, department_id: str, size: int = 100) -> list[dict]:
+    """分页查询采购申请列表。"""
+    resp = session.api(
+        "/HospitalProcurement/hospitalPurchaseRequest/page"
+        f"?current=1&size={size}&departmentId={department_id}"
+    )
+    body = resp.json() or {}
+    if not body.get("success"):
+        raise RuntimeError(f"查询采购申请列表失败：{resp.status_code} {str(body)[:200]}")
+    return (body.get("data") or {}).get("records") or []

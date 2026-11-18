@@ -60,6 +60,17 @@ def submit_draft(session, request_id: str, demand_document_id: str) -> dict:
     return body.get("data") or {}
 
 
+def second_confirmation(session, request_id: str, demand_document_id: str) -> dict:
+    body = session.api(
+        f"{DOC_APPROVAL}/second-confirmation",
+        method="POST",
+        json={"requestId": request_id, "demandDocumentId": demand_document_id},
+    ).json() or {}
+    if not body.get("success"):
+        raise RuntimeError(f"终稿确认提交失败：{str(body)[:400]}")
+    return body.get("data") or {}
+
+
 # ── HP 审计 ─────────────────────────────────────────────────
 def audit_page(session, size: int = 100) -> list[dict]:
     body = session.api(f"{HP_AUDIT}/page?current=1&size={size}").json() or {}

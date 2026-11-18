@@ -24,13 +24,16 @@ class ApprovalApi:
         return data.get("records") or []
 
     def complete(self, task_id: str, audit_result: str = "1",
-                 comment: str = "自动化测试-通过") -> dict:
-        """办理任务：auditResult=1 通过 / 0 驳回。表单参数用 formProperties[...] 形式。"""
+                 comment: str = "自动化测试-通过",
+                 extra_form: dict | None = None) -> dict:
+        """办理任务：auditResult=1 通过 / 0 驳回；extra_form 追加表单字段。"""
         data = {
             "taskId": task_id,
             "formProperties[auditResult]": audit_result,
             "comment": comment,
         }
+        for key, value in (extra_form or {}).items():
+            data[f"formProperties[{key}]"] = value
         resp = self.session.api(f"{APPROVAL_PREFIX}/task/complete", method="POST", data=data)
         try:
             body = resp.json()

@@ -3,65 +3,71 @@
 > 每个 AI 工作包结束更新本文件，用于跨会话交接。
 
 ## 当前
-- 工作包：**WP6 已完成** → 下一步 WP7（终稿确认 + 三方审查 + 方式分配 + 执行申请）
+- 工作包：**WP7 已完成（采购前置全流程打通：status=9 采购中）** → 下一步 WP8（全链编排/断点续跑/报告）/ WP9（稳定性/清理/文档）
 - 分支：`main`
 
 ## 已完成
-- [x] WP0 环境与骨架（env_check 全绿）
-- [x] WP1 会话/浏览器核心 + 冒烟（26 passed）
-- [x] WP2 S01/S04/S05（P0 全链）
+- [x] WP0 环境与骨架（env_check 40 PASS）
+- [x] WP1 会话/浏览器核心 + 冒烟
+- [x] WP2 S01/S04/S05（P0）
 - [x] WP3 审批通用 + 调研信息/公告
 - [x] WP4 供应商响应 + 资格性审查（state=4）
 - [x] WP5 专家抽取 + 线下论证（state=6 / status=15）
-- [x] **WP6 采购需求编制 + 审计（status=20 审计通过待二次确认）**
-  - `api/document_api.py`：模板列表/创建需求书/保存/提交 BT14/审计推送
-  - `api/audit_api.py`：纪检平台审计列表/详情/报告/审理/主任通过
-  - `api/audit_report.py`：本地用 JWT 回调协议保存审计报告（免开关 OnlyOffice 编辑器）
-  - `scripts/local_env.py`：同步纪检平台登录 key（Redis DB9→DB7）
-  - `flows/s15_requirement.py`、`flows/s16_audit.py`
-  - `tests/flows/test_p2_requirement_audit.py`（自包含全链，默认跳过）
-
-## 本地环境变更（WP6，用户已授权继续）
-1. 启动 OnlyOffice 容器（18099，healthy）。
-2. `db/infra/local-stack/local-stack.ps1`（untracked 本地文件）：
-   - business-approval 的 `hospital.procurement.baseUrl` 覆盖为 `http://127.0.0.1:17825`
-     （原配置指向生产端口 7825，导致 BT14/BT6/BT13 回调失败、状态停在审批中）。
-3. `discipline-supervision/src/main/resources/application-local.yml`（**tracked，未提交**）：
-   - `file.download-base-url` 7707 → 17707（本地文件服务实际下载端口）。
-4. 已重启 business-approval、discipline-supervision、professor、onlyoffice。
+- [x] WP6 需求编制 + 审计（status=20）
+- [x] **WP7 终稿确认 + 三方审查 + 方式分配 + 执行申请（status=9 采购中）**
+  - `api/demand_review_api.py`：需求审查发起/任务/三阶段提交
+  - `api/method_api.py`：采购方式分配提交
+  - `api/execution_api.py`：执行草稿查询（selectOne by sourceApplyId）/经办人候选/提交审批
+  - `flows/s17_confirm.py`、`s18_review.py`、`s19_method.py`、`s20_execution.py`
+  - `tests/flows/test_p3_procurement.py`（P0→…→S20 自包含全链，默认跳过）
 
 ## 证据（2026-11-18）
-- `HP_FULL_CHAIN=1 HP_ARGUMENT_MQ_BRIDGE=1 pytest tests/flows/test_p2_requirement_audit.py -v -s`
-  → **1 passed in 271.84s**
-  - S15：需求书创建/保存/提交 BT14 → 主任通过 → status=17
-  - S16：推送审计 → 报告生成/保存 → 审理 → 审计部主任通过 → **status=20**
-- 手工验证（前一条数据）：审计推送 attachRequirementDocument=1 成功、报告回调保存、
-  主任通过后 HP status=20
-- 默认全量 `pytest -q` → **36 passed, 3 skipped in 208.45s**
-- `env_check.py` → **PASS 40 / WARN 0 / FAIL 0**（OnlyOffice、MQ 桥接均 PASS）
+- `HP_FULL_CHAIN=1 HP_ARGUMENT_MQ_BRIDGE=1 pytest tests/flows/test_p3_procurement.py -v -s`
+  → **1 passed in 291.19s**
+  - S17：终稿确认 → BT14 主任通过 → status=19
+  - S18：发起审查 → status=18 → 承办主任(一般性审查) → 财务部/审计部/采购部并行 → 纪检主任终审 → status=10
+  - S19：方式分配提交（自主采购/比选采购）→ BT6 承办主任→采购办主任(评标方式=综合评分)→院办主任 → status=11
+  - S20：执行草稿 → BT13 承办主任→分管院领导→采购办主任(指定经办人)→分管领导→分管院领导 → **status=9 采购中**
+- 继续探针（从 status=18 数据续跑 S18→S20）→ **1 passed in 28.71s**
+- 默认全量 `pytest -q` → **36 passed, 4 skipped in 227.88s**
+- `env_check.py` → **PASS 40 / WARN 0 / FAIL 0**
+
+## 本地环境变更（WP7，用户已授权继续）
+1. `db/infra/local-stack/local-stack.ps1`（untracked 本地文件）business-approval 新增：
+   - `execution.procurement.baseUrl = http://127.0.0.1:8088/ProcurementExecution`
+   - 原配置为 `http://127.0.0.1:8083`（生产 PE 根上下文），本地导致 BT13 回调 404/连接拒绝。
+   - 已重启 business-approval。
+2. `.env.local`（gitignored）补充 `HP_PASSWORD_ZHOUJIU/CGBGS/CWBZR`（通用测试密码），
+   WP7 需要财务部主任 `zhoujiu` 账号。
+3. PE 回调现在可正常落库：`purchase_project.execution_approval_completed_at` 写入、purchaser 指定；
+   原始 `state` 可能仍显示 A4，但列表按 completed_at 展示"审批通过"，**HP status=9 是最终验收口径**。
+
+## 关键账号/角色（WP7 新增）
+| 角色 | 账号 | 登录角色关键字 |
+|---|---|---|
+| 财务部主任 | `zhoujiu` | 财务部主任 |
+| 采购办主任 | `bailu` | 采购执行部门主任 |
+| 纪检主任（HP 审查终审） | `jjzr` | 纪检主任 |
+| 院办主任 | `baiqi` | 医院办公室主任 |
+| 承办部门分管院领导 | `libai` | 承办部门分管院领导 |
+| 分管领导 | `fgld` | 分管领导 |
+| 分管院领导 | `fgyld` | 分管院领导 |
 
 ## 本次沉淀的坑与解法
-- BT14 完成回调依赖 business-approval 的 `hospital.procurement.baseUrl`，本地必须指向 17825；
-  否则流程实例结束但业务状态停在 16。
-- discipline 本地读取 Redis DB7，审计/纪检账号（sjyj/sjbzr/jjzr）登录后需同步 DB9→DB7 key。
-- 审计报告保存：本地不必打开 OnlyOffice 编辑器，可用与 OnlyOffice 同协议的
-  JWT 回调（HS256 + 下载回写）把报告落库为“已保存”；生产仍由编辑器触发。
-- 审计页面 UI（review.html）在 auditStatus=2 后审计员无法再进入；报告必须在提交审理前保存。
-- 需求书保存：`createByTemplate` 后 `confirm-save` 即可（force-save 在未打开编辑器时会失败）。
+- S18 阶段1任务属于**承办部门主任**（不是承办干事），阶段2/3任务分别属于财务/审计/采购与纪检主任；
+  页面查询必须带 `purchaseRequestId`，任务字段是 `taskId`，文档 id 从 `taskDetail.reviewDocumentId` 取。
+- 一般性审查只需 5 个结果字段（ns/bm/prr/raa/pip）全为 1，`reviewResult=1`。
+- BT6 采购办主任节点必须提交 `bidEvaluationForm`；通用办理接口用 `formProperties[bidEvaluationForm]=0`。
+- BT13 采购办主任选经办人必须走 `vars[purchaseExecutionHandlerUserId]`（不是 formProperties）；
+  经办人候选从 PE `purchaseContactList` 取。
+- 执行草稿在 PE 列表页按当前用户口径可能查不到，直接 `selectOne?sourceApplyId=<申请uuid>` 最稳。
+- S18 可幂等：status 18 已发起时跳过 initiate，便于断点续跑。
 
-## 阻塞 / 已知项
-- `discipline-supervision/src/main/resources/application-local.yml` 的 1 行本地修改未提交；
-  按项目规则需用户确认后提交（该修改仅影响 local profile）。
-- 默认全量套件跳过 3 个需显式开关的链（审批写、论证链、P2 全链），
-  全链验收需 `HP_ARGUMENT_MQ_BRIDGE=1`（P2 另需 `HP_FULL_CHAIN=1`）。
-
-## 下一步（WP7）
-1. S17 终稿确认（`documentApproval/second-confirmation`）；
-2. S18 三方审查（财务/审计/采购并行 + 纪检终审）；
-3. S19 采购方式分配 + BT6；
-4. S20 采购执行申请 + BT13 → **status=9 采购中**。
+## 下一步
+- WP8：全链编排（单个入口跑 P0→status=9）、断点续跑、失败重试、报告输出；
+- WP9：稳定性（重复跑）、数据清理（UI自动化-* 前缀）、最终文档/交付说明。
 
 ## 证据索引
-- P2 全链：`HP_FULL_CHAIN=1 HP_ARGUMENT_MQ_BRIDGE=1 pytest tests/flows/test_p2_requirement_audit.py -v -s`
-- 默认全量：`python -m pytest -q`（36 passed, 3 skipped）
+- P3 全链：`HP_FULL_CHAIN=1 HP_ARGUMENT_MQ_BRIDGE=1 pytest tests/flows/test_p3_procurement.py -v -s`
+- 默认全量：`python -m pytest -q`（36 passed, 4 skipped）
 - 环境：`python scripts/env_check.py`（40 PASS）
