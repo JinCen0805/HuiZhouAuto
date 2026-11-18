@@ -18,10 +18,16 @@ def fmt_time(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def survey_time_window() -> tuple[str, str]:
-    """调研起止时间：开始=1 小时前（触发立即发布），结束=7 天后。"""
+def survey_time_window(end_minutes: float = 7 * 24 * 60,
+                       start_hours_ago: float = 1) -> tuple[str, str]:
+    """调研起止时间：开始=若干小时前（触发立即发布），结束=若干分钟后。
+
+    end_minutes 决定征集截止时间：结果审查要求“征集截止后”才能审核，
+    因此自动化/验收测试常把截止时间设短（如 1.5 分钟）来快速进入待审批状态。
+    """
     now = datetime.now()
-    return fmt_time(now - timedelta(hours=1)), fmt_time(now + timedelta(days=7))
+    return fmt_time(now - timedelta(hours=start_hours_ago)), \
+        fmt_time(now + timedelta(minutes=end_minutes))
 
 
 class SurveyProjectPage:
@@ -53,9 +59,10 @@ class SurveyProjectPage:
         click_row_event(self.page, self.frame, project_name, "edit")
         return browser_helpers.get_frame(self.page, EDIT_URL_PATTERN)
 
-    def fill_edit(self, edit_frame, indicators: list[tuple[str, str, str]] | None = None) -> None:
+    def fill_edit(self, edit_frame, indicators: list[tuple[str, str, str]] | None = None,
+                  end_minutes: float = 7 * 24 * 60) -> None:
         """填写调研信息：联系电话/起止时间/概况 + 三类评审指标各至少一条。"""
-        start, end = survey_time_window()
+        start, end = survey_time_window(end_minutes=end_minutes)
         edit_frame.locator("[idname='handlerPhone']").wait_for(state="visible", timeout=15000)
         edit_frame.fill("[idname='handlerPhone']", "13800138000")
         edit_frame.fill("[idname='startTime']", start)
@@ -131,3 +138,55 @@ class SurveyProjectPage:
         if not project:
             raise LookupError(f"调研项目不存在，无法发布：{project_name}")
         api.push_one_by_id(project["uuid"])
+
+    # ── 供应商侧：参与调研 / 提交响应 ─────────────────────────
+    def open_participate(self, project_name: str):
+        """供应商在列表点“参与调研”，返回 participate.html iframe。"""
+        click_row_event(self.page, self.frame, project_name, "participate")
+        frame = browser_helpers.get_frame(self.page, "surveyProject/participate.html")
+        frame.locator("#replyFileSelect").wait_for(state="visible", timeout=15000)
+        return frame
+
+    def fill_supplier_reply(self, reply_frame, pdf_path: str,
+                            tech_items: list[tuple[str, str, str]] | None = None) -> None:
+        """上传响应文件（等待“已上传”）+ 填技术参数 + 特殊说明。"""
+        file_input = reply_frame.locator("#replyFileSelect input[type='file']")
+        file_input.wait_for(state="attached", timeout=15000)
+        file_input.set_input_files(pdf_path)
+
+        # 部分环境需要手动点“上传”；先尝试，再等列表出现“已上传”
+        upload_btn = reply_frame.locator("#replyFileUploadBtn")
+        if upload_btn.count() > 0 and upload_btn.is_visible():
+            upload_btn.click()
+        reply_frame.wait_for_function(
+            """() => {
+                const list = document.querySelector('#replyFileList');
+                return !!list && /已上传/.test(list.innerText || '');
+            }""",
+            timeout=60000,
+        )
+
+        tech = tech_items or [
+            ("1", "注射泵流量精度", "流量精度应在 ±3% 以内。"),
+            ("2", "电气安全", "符合医用电气设备安全通用要求。"),
+        ]
+        # 确保有行；逐行填写
+        for index, (nature, name, detail) in enumerate(tech):
+            if index > 0:
+                reply_frame.locator("#btnAddTechRow").click()
+                reply_frame.wait_for_timeout(200)
+            reply_frame.locator(".js-nature").nth(index).select_option(nature)
+            reply_frame.locator(".js-name").nth(index).fill(name)
+            reply_frame.locator(".js-tech").nth(index).fill(detail)
+        reply_frame.locator("#specialRemark").fill("自动化测试响应：满足调研公告要求。")
+
+    def submit_supplier_reply(self) -> None:
+        """点击弹窗“提交”→ 确认盖章提示，等待弹窗关闭。"""
+        button = self.page.locator(".layui-layer-btn a", has_text="提交").last
+        button.wait_for(state="visible", timeout=10000)
+        button.click()
+        browser_helpers.confirm_dialog(self.page, None)
+        for _ in range(60):
+            if not any("surveyProject/participate.html" in f.url for f in self.page.frames):
+                break
+            self.page.wait_for_timeout(500)

@@ -17,7 +17,7 @@ def s06_survey_info(session, ctx: dict) -> dict:
                 "调研项目列表未出现“完善信息/编辑”操作")
 
     edit_frame = page.open_edit(ctx["project_name"])
-    page.fill_edit(edit_frame)
+    page.fill_edit(edit_frame, end_minutes=ctx.get("survey_end_minutes", 7 * 24 * 60))
     page.save_edit()
 
     project = wait_until(
@@ -29,4 +29,5 @@ def s06_survey_info(session, ctx: dict) -> dict:
     )
     print(f"[S06] 调研信息已保存，infoComplete={project.get('infoComplete')} OK")
     ctx["survey_project_uuid"] = project.get("uuid")
+    ctx["survey_end_time"] = project.get("endTime")
     return ctx
