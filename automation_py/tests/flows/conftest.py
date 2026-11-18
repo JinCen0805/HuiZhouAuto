@@ -9,6 +9,7 @@ from core.session import BrowserSession
 ROLE_SPECS = {
     "applicant": ("cbbm1", "采购交易系统", "承办部门经办"),
     "supervisor": ("jjzr", "纪检监察平台", "纪检监察主任"),
+    "director": ("zhaoliu", "采购交易系统", "承办部门主任"),
 }
 
 
