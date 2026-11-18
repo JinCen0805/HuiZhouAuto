@@ -6,7 +6,8 @@
 HuiZhouAuto/
 ├── analysis/                    # 分析文档（只读参考）
 │   ├── 采购前置流程UI自动化可行性评估.md
-│   ├── 采购前置流程UI自动化开发计划.md
+│   ├── 采购前置流程UI自动化开发计划-Playwright-Pytest-AI.md   # 当前计划（AI 全程开发）
+│   ├── 采购前置流程UI自动化开发计划.md                        # 历史计划（JS 版，人天估算）
 │   ├── 采购前置流程UI自动化技术方案.md
 │   ├── A_manual_steps.md        # 手册 21 阶段动作清单
 │   ├── B_frontend_selectors.md # 前端选择器/接口盘点
