@@ -1,11 +1,11 @@
 // Verify: 申请单状态 + 调研项目是否自动生成
 const path = require('path');
-const { openSession, openModule } = require('../lib/hp-session');
+const { openSession, openModule, getPassword } = require('../lib/hp-session');
 const SHOT = path.join(__dirname, '..', 'shots');
 const APP_NAME = process.env.APP_NAME || 'UI自动化前置测试-20261118070753';
 
 (async () => {
-  const s = await openSession('wanglun', '@Hc12345678');
+  const s = await openSession('wanglun', getPassword('wanglun'));
   const apply = await openModule(s.page, '采购申请管理', '/HospitalProcurement/view/procurementApply/list.html', '0000006000001');
   await apply.waitForTimeout(2500);
   await apply.locator('.layui-tab-title li', { hasText: '申请单管理' }).first().click();

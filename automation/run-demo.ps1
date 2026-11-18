@@ -11,7 +11,20 @@ function Run-Node($script) {
     if ($LASTEXITCODE -ne 0) { throw "脚本失败：$script" }
 }
 
-Step '0. 检查本地环境'
+Step '0. 加载本地凭据并检查本地环境'
+# 优先读取 automation/.env.local（gitignore，格式 KEY=VALUE），其次使用已注入的环境变量
+$envFile = Join-Path $PSScriptRoot '.env.local'
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$') {
+            [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
+        }
+    }
+    Write-Host "已加载 $envFile"
+}
+$required = @('HP_PASSWORD_WANGLUN', 'HP_PASSWORD_JJZR')
+$missing = $required | Where-Object { -not [Environment]::GetEnvironmentVariable($_, 'Process') }
+if ($missing) { throw "缺少密码环境变量：$($missing -join ', ')。请创建 automation/.env.local 或运行前注入。" }
 try {
     $r = Invoke-WebRequest 'http://127.0.0.1/HospitalProcurement/index.html' -UseBasicParsing -TimeoutSec 5
     Write-Host "HP 首页 OK ($($r.StatusCode))"

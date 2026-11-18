@@ -1,5 +1,5 @@
 // Probe approval todo API with an approver account (zhaoliu)
-const { loginHttp, BASE } = require('../lib/hp-session');
+const { loginHttp, BASE, getPassword } = require('../lib/hp-session');
 
 function clientFrom(session) {
   return async (path, opts = {}) => {
@@ -12,7 +12,7 @@ function clientFrom(session) {
   };
 }
 (async () => {
-  const s = await loginHttp('zhaoliu', '@Hc12345678', '采购交易系统');
+  const s = await loginHttp('zhaoliu', getPassword('zhaoliu'), '采购交易系统');
   console.log('zhaoliu:', s.platform, s.role);
   const req = clientFrom(s);
   const g = await req('/EbiddingBusinessApproval/workflow/task/list/todo?current=1&size=10');

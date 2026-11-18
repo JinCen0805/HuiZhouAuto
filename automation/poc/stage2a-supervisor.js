@@ -1,5 +1,5 @@
 // Stage 2a PoC: 纪检主任分配监督员（API，跨系统），验证申请单 22 -> 8
-const { loginHttp, BASE } = require('../lib/hp-session');
+const { loginHttp, BASE, getPassword } = require('../lib/hp-session');
 const fs = require('fs');
 
 function clientFrom(session, opts = {}) {
@@ -29,7 +29,7 @@ function clientFrom(session, opts = {}) {
 const APP_NAME = process.env.APP_NAME || 'UI自动化前置测试-20261118070753';
 
 (async () => {
-  const jj = await loginHttp('jjzr', '@Hc12345678', '纪检监察平台');
+  const jj = await loginHttp('jjzr', getPassword('jjzr'), '纪检监察平台');
   const jreq = clientFrom(jj);
   const sup = await jreq('/jjjc/supervise/supervisorList?prjCode=prjCode_PR_JJJC&pageNum=1&pageSize=50');
   const candidates = (sup.json && sup.json.data) || [];

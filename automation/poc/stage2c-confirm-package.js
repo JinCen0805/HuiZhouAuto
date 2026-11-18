@@ -1,14 +1,14 @@
 // Stage 2c PoC: 列表【确认】锁定分包 -> 验证 待调研 + 调研项目生成
 const path = require('path');
 const fs = require('fs');
-const { openSession, openModule, BASE } = require('../lib/hp-session');
+const { openSession, openModule, BASE, getPassword } = require('../lib/hp-session');
 
 const SHOT = path.join(__dirname, '..', 'shots');
 const APP_NAME = process.env.APP_NAME || 'UI自动化前置测试-20261118070753';
 const REQUEST_CODE = process.env.REQUEST_CODE || 'HW-YXGZB-CG20260008';
 
 (async () => {
-  const s = await openSession('wanglun', '@Hc12345678');
+  const s = await openSession('wanglun', getPassword('wanglun'));
   const frame = await openModule(s.page, '分包管理', '/HospitalProcurement/view/packageManagement/index.html', '0000006000002');
   await frame.waitForTimeout(2500);
   await frame.fill('[idName=requestName]', APP_NAME);

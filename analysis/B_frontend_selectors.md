@@ -592,7 +592,7 @@ L0  http://127.0.0.1/HospitalProcurement/index.html            ← 外壳（左�
 
 ### 5.1 登录与平台选择（已由 `automation/probe-*.js` 验证）
 1. `GET /Register/login/verification.do`（拿验证码 cookie；验证码图片 `#codeImg` src 同地址）。
-2. `POST /Register/login/userLogin.do`，form：`username`、`password`（MD5，示例账号 `cy-cgb-jbr`/`Hc1234` → `crypto.createHash('md5')`）、`checkCode`（**万能码 `qwe!@#`**，见 `registers/.../LoginAction.java`）、`SimplePwd=0`。
+2. `POST /Register/login/userLogin.do`，form：`username`、`password`（MD5，示例账号 `cy-cgb-jbr`/`<测试密码>` → `crypto.createHash('md5')`）、`checkCode`（**万能码 `qwe!@#`**，见 `registers/.../LoginAction.java`）、`SimplePwd=0`。
 3. 登录页选择器：`#username`、`#password`、`#code`、`#loginBtn`（`lay-filter="loginForm"`）、登录方式 radio `input[name="loginType"]`（用户名登录/CA 登录/粤企签）；验证码刷新 `#codeImg[onclick=changeCode()]`。
 4. `GET /Register/SelectPlatformAction/select.do` → 返回 `data.platform` / `data.roleCode`（值是加密/编码后的串，不是明文）。
 5. `POST /Register/SelectPlatformAction/gotoIndex.do`，form：`platform`、`roleCode`、`macAddress=''`、`ipAddress=''` → `data` 为要跳转的外壳页（如 `/HospitalProcurement/index.html`）。
@@ -680,7 +680,7 @@ await page.locator('.layui-layer-btn0').click(); // 保存草稿
 ### 7.1 现有 `automation/`（HTTP 层，已可用）
 | 文件 | 作用 | 复用方式 |
 |---|---|---|
-| `automation/probe-login.js` | 纯 Node `fetch` 登录：`verification.do` → `userLogin.do`（MD5 + `qwe!@#`）→ `select.do` 打印平台/角色 | 可提取 cookie jar + `req()` 作为 API 级前置/断言工具；账号 `cy-cgb-jbr`/`Hc1234` |
+| `automation/probe-login.js` | 纯 Node `fetch` 登录：`verification.do` → `userLogin.do`（MD5 + `qwe!@#`）→ `select.do` 打印平台/角色 | 可提取 cookie jar + `req()` 作为 API 级前置/断言工具；账号 `cy-cgb-jbr`/`<测试密码>` |
 | `automation/probe-goto.js` | `gotoIndex.do` → 取外壳 HTML → 落盘 `index-session.html`；打印跳转地址 | 生成/校验“角色→平台→外壳 URL”链路 |
 | `automation/probe-menu.js` | `gotoIndex` 后 `GET /nodeJs/menu_Json`，落盘 `menu-<user>.json` | **每轮 E2E 前取菜单，断言目标菜单 code 存在**；也可当菜单变更回归 |
 | `automation/menu-cy-cgb-jbr.json` | cy-cgb-jbr 真实菜单（96 项） | 角色菜单差异对比基准 |

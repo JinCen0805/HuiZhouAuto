@@ -104,4 +104,14 @@ async function openModule(page, title, url, nodeId) {
   return frames[frames.length - 1];
 }
 
-module.exports = { BASE, CHROME, loginHttp, openSession, openModule, makeHttp, md5 };
+/** 从环境变量读取账号密码，禁止在代码中硬编码。
+ *  约定：HP_PASSWORD_<USERNAME 大写，- 换 _>；兼容通用 HP_PASS。
+ *  本项目使用 .env.local（gitignore）或运行前注入环境变量。 */
+function getPassword(user) {
+  const key = 'HP_PASSWORD_' + String(user).toUpperCase().replace(/-/g, '_');
+  const pwd = process.env[key] || process.env.HP_PASS;
+  if (!pwd) throw new Error(`密码未配置：${key}（或 HP_PASS）。请设置环境变量或 .env.local`);
+  return pwd;
+}
+
+module.exports = { BASE, CHROME, loginHttp, openSession, openModule, makeHttp, md5, getPassword };

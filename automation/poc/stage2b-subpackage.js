@@ -1,7 +1,7 @@
 // Stage 2b PoC: 分包管理（UI）—— 新增子包 -> 保存 -> 确认分包
 const path = require('path');
 const fs = require('fs');
-const { openSession, openModule } = require('../lib/hp-session');
+const { openSession, openModule, getPassword } = require('../lib/hp-session');
 
 const SHOT = path.join(__dirname, '..', 'shots');
 fs.mkdirSync(SHOT, { recursive: true });
@@ -11,7 +11,7 @@ const REQUEST_CODE = process.env.REQUEST_CODE || 'HW-YXGZB-CG20260008';
 async function shot(page, n) { await page.screenshot({ path: path.join(SHOT, n) }); }
 
 (async () => {
-  const s = await openSession('wanglun', '@Hc12345678');
+  const s = await openSession('wanglun', getPassword('wanglun'));
   console.log('[ok] login', s.platform, '/', s.role);
   const frame = await openModule(s.page, '分包管理', '/HospitalProcurement/view/packageManagement/index.html', '0000006000002');
   await frame.waitForTimeout(3000);

@@ -52,13 +52,17 @@ HuiZhouAuto/
 cd D:\Desktop\HuiZhouAuto\automation
 npm install
 
-# 设置密码环境变量
-$env:HP_USER = 'wanglun'
-$env:HP_PASS = '@Hc12345678'
+# 密码通过环境变量注入（不要写进命令历史/脚本；推荐用 .env.local）
+# 约定：HP_PASSWORD_<账号大写，- 换 _>，兼容 HP_PASS
+$env:HP_PASSWORD_WANGLUN = '<从本地凭据文件读取>'
+$env:HP_PASSWORD_JJZR    = '<从本地凭据文件读取>'
 
 # 一键演示：采购申请 → 纪检分配 → 分包 → 生成调研项目
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File run-demo.ps1
 ```
+
+> 供应商账号：`ybjcsgys1` / `ybjcsgys2` / `ybjcsgys3`（角色=供应商，已实测可登录并进入
+> 「市场调研管理 → 调研项目管理」）。密码同样走环境变量 `HP_PASSWORD_YBJCSGYS1~3`。
 
 ### Python 版（待建，技术方案见 analysis/）
 

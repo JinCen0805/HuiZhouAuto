@@ -720,9 +720,9 @@ def confirm_dialog(page, frame, timeout=15000):
 
 ```bash
 # .env.local（.gitignore）
-HP_PASSWORD_CBBM1=@Hc12345678
-HP_PASSWORD_WANGLUN=@Hc12345678
-HP_PASSWORD_JJZR=@Hc12345678
+HP_PASSWORD_CBBM1=<测试密码>
+HP_PASSWORD_WANGLUN=<测试密码>
+HP_PASSWORD_JJZR=<测试密码>
 ...
 ```
 

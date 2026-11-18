@@ -1,12 +1,12 @@
 // Stage 1 PoC: 采购申请发起 -> 保存草稿 -> 确认（进入待分配监督员）
 const path = require('path');
 const fs = require('fs');
-const { openSession, openModule } = require('../lib/hp-session');
+const { openSession, openModule, getPassword } = require('../lib/hp-session');
 
 const SHOT = path.join(__dirname, '..', 'shots');
 fs.mkdirSync(SHOT, { recursive: true });
 const USER = process.env.HP_USER || 'wanglun';
-const PASS = process.env.HP_PASS || '@Hc12345678';
+const PASS = getPassword(USER);
 const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
 const PROJECT_NAME = 'UI自动化前置测试-' + stamp;
 

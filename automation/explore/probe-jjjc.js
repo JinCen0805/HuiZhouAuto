@@ -1,5 +1,5 @@
 // Probe 纪检平台: supervisorList, projectPageList, assign; verify HP status persistence.
-const { loginHttp, BASE, md5 } = require('../lib/hp-session');
+const { loginHttp, BASE, md5, getPassword } = require('../lib/hp-session');
 const fs = require('fs');
 
 function clientFrom(session) {
@@ -15,7 +15,7 @@ function clientFrom(session) {
 }
 
 (async () => {
-  const jj = await loginHttp('jjzr', '@Hc12345678', '纪检监察平台');
+  const jj = await loginHttp('jjzr', getPassword('jjzr'), '纪检监察平台');
   console.log('jjzr platform:', jj.platform, '| role:', jj.role, '| target:', jj.target);
   const req = clientFrom(jj);
   const sup = await req('/jjjc/supervise/supervisorList?prjCode=prjCode_PR_JJJC&pageNum=1&pageSize=50');

@@ -1,12 +1,12 @@
 // Explore stage 1: user info + selectable reserve rows + 单独发起 -> edit page form
 const path = require('path');
 const fs = require('fs');
-const { openSession, openModule } = require('../lib/hp-session');
+const { openSession, openModule, getPassword } = require('../lib/hp-session');
 
 const SHOT = path.join(__dirname, '..', 'shots');
 fs.mkdirSync(SHOT, { recursive: true });
 const USER = process.env.HP_USER || 'cy-cbbm-jbr';
-const PASS = process.env.HP_PASS || 'Hc1234';
+const PASS = getPassword(USER);
 
 (async () => {
   const s = await openSession(USER, PASS);
