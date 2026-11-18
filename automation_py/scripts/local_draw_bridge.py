@@ -51,7 +51,7 @@ def ensure_result_bindings() -> int:
 def _docker_env(container: str, name: str) -> str:
     result = subprocess.run(
         ["docker", "exec", container, "printenv", name],
-        capture_output=True, text=True, timeout=20,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
     )
     value = (result.stdout or "").strip()
     if result.returncode != 0 or not value:
@@ -81,7 +81,7 @@ def pending_events(limit: int = 50) -> list[dict]:
     result = subprocess.run(
         ["docker", "exec", MYSQL_CONTAINER, "mysql", "-uroot", f"-p{password}",
          "-N", "--batch", "--raw", "-e", sql],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
     )
     if result.returncode != 0:
         raise RuntimeError(f"查询 outbox 失败：{result.stderr[:300]}")

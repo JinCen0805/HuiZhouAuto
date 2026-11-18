@@ -39,6 +39,12 @@ class HttpSession:
     def post(self, path: str, **kwargs) -> requests.Response:
         return self.http.post(self.url(path), timeout=self.timeout, **kwargs)
 
+    def put(self, path: str, **kwargs) -> requests.Response:
+        return self.http.put(self.url(path), timeout=self.timeout, **kwargs)
+
+    def delete(self, path: str, **kwargs) -> requests.Response:
+        return self.http.delete(self.url(path), timeout=self.timeout, **kwargs)
+
     # ── 登录链路 ──────────────────────────────────────────────
     def login(self, username: str, password: str) -> "HttpSession":
         self.username = username

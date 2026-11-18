@@ -10,6 +10,8 @@ ROLE_SPECS = {
     "applicant": ("cbbm1", "采购交易系统", "承办部门经办"),
     "supervisor": ("jjzr", "纪检监察平台", "纪检监察主任"),
     "director": ("zhaoliu", "采购交易系统", "承办部门主任"),
+    "auditor": ("sjyj", "纪检监察平台", "审计员"),
+    "auditDirector": ("sjbzr", "纪检监察平台", "审计部主任"),
     "supplier1": ("ybjcsgys1", "采购交易系统", "供应商"),
     "supplier2": ("ybjcsgys2", "采购交易系统", "供应商"),
     "supplier3": ("ybjcsgys3", "采购交易系统", "供应商"),
