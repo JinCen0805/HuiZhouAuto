@@ -46,3 +46,25 @@ automation_py/
 - 业务参数集中在 `fixtures/flow_config.json`（WP2 前补齐）；
 - 测试断言以业务状态/接口数据为准，不以“页面 200”为准；
 - 每个工作包完成须附实际运行证据，并更新根目录 `PROGRESS.md`。
+
+## 本地环境特殊配置（WP5 起）
+
+本地栈默认隔离了 HP→professor 的“抽取建项”MQ 通道，专家抽取会卡住。已按 WP5 方案 A 做如下处理：
+
+1. `db/infra/local-stack/local-stack.ps1`（**未提交，仅本地**）：
+   - professor `mq.rabbitmq.vhost` 改为 `/local-hospital-procurement`（与 HP 共用）；
+   - `draw.integration.listener.enabled=true`，并恢复 `spring-rabbitmq.xml` 的 auto-startup；
+   - 已执行 `local-stack.ps1 restart-service -Service professor`。
+2. HP 本地 profile 关闭了 Spring 定时任务（outbox relay 不执行），
+   由 `scripts/local_draw_bridge.py` 把待发布的 `draw.command.create` 消息直接投递到 RabbitMQ；
+   s11 流程会自动调用（仅本地可用，缺少 docker 时会跳过）。
+3. 需要补齐 `hospital.draw.result.queue` 的 `draw.event.#` 绑定（脚本会自动补齐），
+   否则 professor 回调会因 `NO_ROUTE` 事务回滚。
+
+未做上述配置时：`pytest tests/flows/test_p1_argument.py` 的链式用例默认 skip；
+配置完成后可执行：
+
+```powershell
+$env:HP_ARGUMENT_MQ_BRIDGE='1'
+& $py -m pytest tests/flows/test_p1_argument.py -v -s
+```

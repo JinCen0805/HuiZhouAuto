@@ -67,4 +67,10 @@ def s10_review(applicant_session, director_session, ctx: dict) -> dict:
     )
     print(f"[S10] 资格性审查完成，state={project.get('state')} OK")
     ctx["reviewed"] = True
+
+    # 清理评审详情弹窗，避免遮挡后续页面
+    from core import browser as browser_helpers
+
+    browser_helpers.close_all_layers(applicant_session.page)
+    browser_helpers.close_all_layers(director_session.page)
     return ctx

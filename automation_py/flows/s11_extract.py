@@ -30,12 +30,13 @@ def s11_extract(session, ctx: dict) -> dict:
 
     now = datetime.datetime.now()
     fmt = "%Y-%m-%d %H:%M:%S"
+    gather_start = now + datetime.timedelta(minutes=2)
     payload = {
         "surveyProjectUuid": survey_uuid,
         "argumentMode": "OFFLINE",
         "extractMode": "MANUAL",
-        "gatherTime": (now + datetime.timedelta(hours=2)).strftime(fmt),
-        "gatherEndTime": (now + datetime.timedelta(hours=3)).strftime(fmt),
+        "gatherTime": gather_start.strftime(fmt),
+        "gatherEndTime": (gather_start + datetime.timedelta(hours=2)).strftime(fmt),
         "gatherPlace": "自动化测试会议室",
         "evaluateExpertNumber": 3,
         "leaderSelectMode": "MANUAL",
@@ -45,7 +46,19 @@ def s11_extract(session, ctx: dict) -> dict:
             "expertCount": 3,
         }],
     }
+    ctx["gather_time"] = gather_start.strftime(fmt)
     api.start_extract(payload)
+
+    # 本地环境：HP 定时任务被本地栈关闭，outbox relay 不执行；
+    # 用本地桥接脚本把待发布的建项消息直接投递到 RabbitMQ（测试环境无需此步）。
+    try:
+        from scripts.local_draw_bridge import publish_pending
+
+        bridged = publish_pending()
+        if bridged:
+            print(f"[S11] 本地 MQ 桥接：已投递 {bridged} 条建项消息")
+    except Exception as exc:  # noqa: BLE001 - 测试环境没有 docker/本地库，跳过即可
+        print(f"[S11] 本地 MQ 桥接跳过：{exc}")
 
     # 等 professor 建项（本地默认隔离时此处会超时，抛出明确环境错误）
     section_code = f"HP-SURVEY-{survey_uuid}"
@@ -75,23 +88,52 @@ def s11_extract(session, ctx: dict) -> dict:
     print(f"[S11] 已勾选专家：{expert_uuids}")
 
     # mock 电话确认（keypress=1 = 参加）
-    call_ids = mock.create_call_ids(project["projectId"])
-    mapping = {}
-    for item in call_ids:
-        expert_id = item.get("expertId") or item.get("expertUuid")
-        call_id = item.get("callid") or item.get("callId")
-        if expert_id and call_id:
-            mapping[expert_id] = call_id
+    # 本地环境：先补齐 professor 回传事件的队列绑定（HP 本地未声明）
+    try:
+        from scripts.local_draw_bridge import ensure_result_bindings
+
+        ensure_result_bindings()
+    except Exception as exc:  # noqa: BLE001 - 测试环境无需
+        print(f"[S11] 结果绑定补齐跳过：{exc}")
+
+    # callid 以 drawProjectExpertId 为键；需用项目详情把 expertId 映射过去
+    call_ids = wait_until(
+        lambda: (lambda rows: rows if rows else None)(mock.create_call_ids(project["projectId"])),
+        timeout_s=30,
+        message="professor 未生成 callid（专家可能尚未就绪）",
+    )
+    call_map = {
+        item.get("drawProjectExpertId"): item.get("callid")
+        for item in call_ids
+        if item.get("drawProjectExpertId") and item.get("callid")
+    }
+    detail = mock.project_detail(project["projectId"])
+    expert_records = {
+        row.get("expertId"): row
+        for row in detail.get("experts") or []
+        if row.get("expertId")
+    }
     for expert_uuid in expert_uuids:
-        call_id = mapping.get(expert_uuid)
-        assert_true(bool(call_id), f"专家 {expert_uuid} 未生成 callid")
-        mock.callback(expert_uuid, call_id, "1")
+        record = expert_records.get(expert_uuid)
+        if not record:
+            raise AssertionError(f"professor 项目详情未找到专家 {expert_uuid}")
+        record_id = record.get("drawProjectExpertId")
+        call_id = call_map.get(record_id)
+        assert_true(bool(call_id), f"专家 {expert_uuid} 未生成 callid；映射={call_map}")
+        mock.callback(record_id, call_id, "1")
     print("[S11] 已模拟专家电话确认（keypress=1）")
 
+    def _extract_done():
+        try:
+            # 触发 HP 从 Dubbo 同步专家状态
+            api.list_manual_candidates(survey_uuid, specialty_code)
+        except Exception:  # noqa: BLE001 - 抽取完成后该接口可能返回不同结构，忽略
+            pass
+        current = api.get_detail(survey_uuid)
+        return current if (current.get("argument") or {}).get("extractStatus") == 2 else None
+
     detail = wait_until(
-        lambda: (lambda d: d if (d.get("argument") or {}).get("extractStatus") == 2 else None)(
-            api.get_detail(survey_uuid)
-        ),
+        _extract_done,
         timeout_s=30,
         message="专家确认后 extractStatus 未变为 2",
     )

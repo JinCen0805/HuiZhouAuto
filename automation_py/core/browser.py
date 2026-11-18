@@ -128,3 +128,27 @@ def wait_for_msg(page, frame=None, timeout_ms: int = 8000) -> str:
                 return (floc.last.inner_text() or "").strip()
         page.wait_for_timeout(200)
     return ""
+
+
+def close_all_layers(page) -> None:
+    """关闭顶层所有 layer 弹窗并清理遗留遮罩（用例收尾/切换页面时清理遮挡）。"""
+    try:
+        page.evaluate(
+            """() => {
+                const docs = [];
+                try { docs.push(window.document); } catch (e) {}
+                try { if (window.top) docs.push(window.top.document); } catch (e) {}
+                for (const doc of docs) {
+                    try { doc.querySelectorAll('.layui-layer-shade').forEach(n => n.remove()); } catch (e) {}
+                }
+                try { if (window.top && window.top.layer) window.top.layer.closeAll(); } catch (e) {}
+                try { if (window.layer) window.layer.closeAll(); } catch (e) {}
+                for (const doc of docs) {
+                    try { doc.querySelectorAll('.layui-layer-shade').forEach(n => n.remove()); } catch (e) {}
+                    try { doc.body.style.overflow = ''; } catch (e) {}
+                }
+            }"""
+        )
+        page.wait_for_timeout(400)
+    except Exception:  # noqa: BLE001 - 页面可能已关闭
+        pass

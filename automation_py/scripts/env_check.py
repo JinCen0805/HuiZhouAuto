@@ -153,6 +153,26 @@ def check_onlyoffice() -> str:
         return f"{host}:{port} 可连接"
 
 
+def check_draw_mq_bridge() -> str:
+    """检查本地抽取建项 MQ 桥接：professor 是否在 HP vhost 上消费建项队列。"""
+    import subprocess
+
+    result = subprocess.run(
+        ["docker", "exec", "hospital-local-stack-rabbitmq-1",
+         "rabbitmqctl", "list_queues", "-p", "/local-hospital-procurement", "name", "consumers"],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"RabbitMQ 查询失败：{result.stderr[:200]}")
+    for line in result.stdout.splitlines():
+        if "professor.draw.create.queue" in line:
+            parts = line.split()
+            if parts and int(parts[-1]) >= 1:
+                return "professor.draw.create.queue 有消费者"
+            raise RuntimeError("professor 建项队列无消费者")
+    raise RuntimeError("未找到 professor.draw.create.queue")
+
+
 # ── C. 账号与关键接口 ───────────────────────────────────────
 def check_account(username: str, platform: str, role_keyword: str) -> str:
     password = CFG.password(username)
@@ -291,6 +311,9 @@ def main() -> int:
     print("\n[E] 可选环境（后续阶段需要）")
     run("OnlyOffice(18099)", check_onlyoffice, required=False,
         hint="WP6 前需启动 OnlyOffice 容器（采购需求书/审计报告在线编辑）")
+    run("抽取建项 MQ 桥接", check_draw_mq_bridge, required=False,
+        hint="按 WP5 方案 A 修改 local-stack（professor vhost/listener）并重启 professor；"
+             "HP relay 由 scripts/local_draw_bridge.py 本地桥接")
 
     passed = sum(1 for r in RESULTS if r["status"] == "PASS")
     warned = sum(1 for r in RESULTS if r["status"] == "WARN")

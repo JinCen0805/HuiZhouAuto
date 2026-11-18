@@ -9,11 +9,11 @@ class ProfessorMockApi:
         self.session = session
 
     def enabled(self) -> bool:
-        body = self.session.get(f"{MOCK_PREFIX}/enabled").json() or {}
+        body = self.session.api(f"{MOCK_PREFIX}/enabled").json() or {}
         return bool((body.get("data") or {}).get("enabled"))
 
     def find_project(self, purchase_section_code: str) -> dict | None:
-        body = self.session.get(
+        body = self.session.api(
             f"{MOCK_PREFIX}/projects?keyword={purchase_section_code}&page=1&pageSize=10"
         ).json() or {}
         for row in (body.get("data") or {}).get("records") or []:
@@ -21,9 +21,15 @@ class ProfessorMockApi:
                 return row
         return None
 
+    def project_detail(self, project_id: str) -> dict:
+        body = self.session.api(f"{MOCK_PREFIX}/projects/{project_id}").json() or {}
+        if not body.get("success"):
+            raise RuntimeError(f"mock 抽取项目详情失败：{str(body)[:300]}")
+        return body.get("data") or {}
+
     def create_call_ids(self, project_id: str) -> list[dict]:
-        body = self.session.post(
-            f"{MOCK_PREFIX}/projects/{project_id}/callids", json={}
+        body = self.session.api(
+            f"{MOCK_PREFIX}/projects/{project_id}/callids", method="POST", json={}
         ).json() or {}
         if not body.get("success"):
             raise RuntimeError(f"生成 callid 失败：{str(body)[:300]}")
@@ -35,8 +41,9 @@ class ProfessorMockApi:
         return []
 
     def callback(self, expert_id: str, call_id: str, keypress: str = "1") -> dict:
-        body = self.session.post(
+        body = self.session.api(
             f"{MOCK_PREFIX}/experts/{expert_id}/callback",
+            method="POST",
             json={"callid": call_id, "keypress": keypress},
         ).json() or {}
         if not body.get("success"):

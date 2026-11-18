@@ -116,6 +116,12 @@ class HttpSession:
     def cookie_header(self) -> str:
         return "; ".join(f"{c.name}={c.value}" for c in self.http.cookies)
 
+    def api(self, path: str, method: str = "GET", **kwargs):
+        """与 BrowserSession.api 同签名：带 cookie 直调接口。"""
+        headers = {"Accept": "application/json"}
+        headers.update(kwargs.pop("headers", {}))
+        return self.http.request(method, self.url(path), headers=headers, **kwargs)
+
     def cookie_list(self) -> list[dict]:
         return [
             {"name": c.name, "value": c.value, "domain": "127.0.0.1", "path": "/"}

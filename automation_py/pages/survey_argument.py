@@ -16,11 +16,14 @@ class SurveyArgumentPage:
     def __init__(self, session):
         self.session = session
         self.page = session.page
+        browser_helpers.close_all_layers(self.page)
         self.frame = session.open_module(MODULE_URL, "调研论证管理", MENU_ID)
         self.frame.locator("#doSearch").wait_for(state="visible", timeout=20000)
         self.frame.wait_for_timeout(1500)
 
     def search(self, project_name: str) -> None:
+        # 打开模块/弹窗后可能遗留遮罩，搜索前再清理一次
+        browser_helpers.close_all_layers(self.page)
         self.frame.locator("[idname='projectName']").fill(project_name)
         self.frame.click("#doSearch")
         self.frame.wait_for_timeout(1500)
@@ -40,12 +43,20 @@ class SurveyArgumentPage:
         frame.locator("#closeSit").wait_for(state="visible", timeout=20000)
         return frame
 
-    def designate_first_leader(self, situation_frame) -> str:
+    def designate_first_leader(self, situation_frame, survey_uuid: str = "") -> str:
+        """读取候选专家组长的 data-uuid，直接调接口指定（避免异步弹窗时序问题）。"""
+        from api.argument_api import ArgumentApi
+
         button = situation_frame.locator(".designate-btn").first
         button.wait_for(state="visible", timeout=15000)
         expert_uuid = button.get_attribute("data-uuid") or ""
-        button.click()
-        situation_frame.wait_for_timeout(1500)
+        if not expert_uuid:
+            raise LookupError("未读取到专家组长的 expertUuid")
+        if survey_uuid:
+            ArgumentApi(self.session).designate_leader(survey_uuid, expert_uuid)
+        else:
+            button.click()
+            situation_frame.wait_for_timeout(2500)
         close = situation_frame.locator("#closeSit")
         if close.count() > 0:
             close.click()
