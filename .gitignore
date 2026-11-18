@@ -1,0 +1,23 @@
+# Node
+automation/node_modules/
+
+# Python
+automation_py/__pycache__/
+automation_py/.pytest_cache/
+automation_py/reports/
+automation_py/.sessions/
+*.pyc
+
+# 运行产物
+automation/shots/
+automation/reports/
+automation/stage*-result.json
+automation/explore/artifacts/
+automation/.sessions/
+
+# 密码/凭据
+.env.local
+**/.env.local
+
+# 分析期临时产物（已保留有价值内容，其余不需要）
+analysis/manual/images2/
