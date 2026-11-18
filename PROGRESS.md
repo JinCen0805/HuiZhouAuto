@@ -3,43 +3,42 @@
 > 每个 AI 工作包结束更新本文件，用于跨会话交接。
 
 ## 当前
-- 工作包：**WP0 已完成** → 下一步 WP1
+- 工作包：**WP1 已完成** → 下一步 WP2（S01/S04/S05 迁移）
 - 分支：`main`
 
 ## 已完成
 - [x] 分析与技术方案（analysis/）
-- [x] Playwright + Pytest 环境安装与验证（Python 3.12.14 / playwright 1.65.2 / pytest 9.2.0）
-- [x] 供应商账号 ybjcsgys1~3 验证（采购交易系统/供应商/107 菜单）
+- [x] Playwright + Pytest 环境安装与验证
+- [x] 供应商账号 ybjcsgys1~3 验证
 - [x] 12 项业务默认值确认 + 附件素材就位
-- [x] **WP0 环境与仓库骨架**
-  - `automation_py/` 骨架：`core/`（config/session/browser/assert_helper/reporter/retry）、
-    `conftest.py`、`pytest.ini`、`requirements.txt`、`tests/`
-  - `scripts/env_check.py` 环境自检（38 PASS / 1 WARN / 0 FAIL，耗时 6.5s）
-  - 引导测试 `pytest -q`：5 passed
-  - `AGENTS.md`（根目录 AI 协作规则）、`PROGRESS.md`、`automation_py/README.md`
-  - `.env.local.example` 模板；真实密码在 `.env.local`（gitignore）
-  - `fixtures/files/` 放入 `wjc测试文件.pdf/.docx`
+- [x] **WP0 环境与仓库骨架**（env_check 38 PASS/1 WARN/0 FAIL；pytest 5 passed）
+- [x] **WP1 会话/浏览器核心 + 冒烟**
+  - `core/session.py`：`HttpSession`（登录/选平台/角色）、`BrowserSession`
+    （HTTP cookie→Playwright context、storageState 缓存、`menu_Json` 校验失效重登）
+  - `core/browser.py`：`open_hp`、`get_frame`、`open_module`（changeView）、
+    `confirm_dialog`（top 优先/frame 兜底）、`wait_for_msg`
+  - `tests/smoke/`：5 角色登录 + 16 页面加载 + 5 个关键接口
+  - 多角色账号按角色名显式选择（bailu 默认“专家评委”的坑已规避）
 
-## 证据
-- 环境自检（2026-11-18）：
-  - `[A]` Python 3.12.14 / 依赖 / Chromium / Playwright 启动（title=采购交易系统）
-  - `[B]` 13 个服务健康 200；新版 API 网关路由（HTTP 500=路由存在）；专家 mock `enabled=true`
-  - `[C]` 14 个账号登录+角色+菜单通过；纪检鉴权 `canManage=True`；预算计划接口 `years=5`
-  - `[D]` 附件素材 49879B/10221B；报告目录可写
-  - `[E]` OnlyOffice(18099) WARN（WP6 前需启动）
-- `pytest -q` → `5 passed in 0.11s`
+## 证据（2026-11-18）
+- `python scripts/env_check.py` → **PASS 38 / WARN 1 / FAIL 0**（6.5s）
+  - 唯一 WARN：OnlyOffice(18099) 未启动（WP6 前启动）
+- `python -m pytest -q` → **31 passed in 10.24s**
+- `python -m pytest tests/smoke -q` → **26 passed in 9.78s**；第二次运行 **26 passed in 9.62s**
+  （storageState 缓存复用生效）
+- `.sessions/` 已生成 5 个角色缓存文件，且被 `.gitignore` 忽略
 
 ## 阻塞 / 已知项
-- OnlyOffice 容器未启动（WARN）：WP6（采购需求/审计报告在线编辑）前启动即可。
-- 本地纪检 Redis DB 差异已通过登录 key 同步缓解；`env_check` 每次会验证（401 会 FAIL）。
-- `.env.local` 含本地测试密码，已 gitignore；严禁提交。
+- OnlyOffice(18099) 未启动：WP6 前启动（WARN，不影响 P0/P1 前半段）。
+- 本地纪检 Redis DB 差异：靠登录后 key 同步缓解；`env_check` 的“纪检接口鉴权”会拦截 401。
+- 多角色账号必须显式指定角色关键字，否则默认第一个角色可能不是目标角色。
 
-## 下一步（WP1）
-1. `core/session.py` 扩展：Playwright context 注入、storageState 缓存、失效重登；
-2. `core/browser.py` 扩展：`open_hp`、`changeView` 开模块、iframe/双套弹窗 helper；
-3. `tests/smoke/`：14 个页面可加载 + 关键接口断言；
-4. 验收：`pytest tests/smoke -q` 全绿，提交 push。
+## 下一步（WP2）
+1. `pages/procurement_apply.py` + `flows/s01_apply.py`（选计划→保存草稿→确认）
+2. `api/jjjc_api.py` + `flows/s04_supervisor.py`（纪检分配）
+3. `pages/package_management.py` + `flows/s05_package.py`（新增子包→确认）
+4. `tests/flows/test_p0_main.py`：一条命令生成“待调研 + 调研项目”，连续 2 次通过
 
 ## 证据索引
-- 环境自检命令：`python scripts/env_check.py`（本文件 §证据）
-- 引导测试：`python -m pytest -q` → 5 passed
+- 环境自检：见本文件 §证据
+- 冒烟：`python -m pytest tests/smoke -q`
