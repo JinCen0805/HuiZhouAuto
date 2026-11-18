@@ -6,6 +6,8 @@ automation_py/__pycache__/
 automation_py/.pytest_cache/
 automation_py/reports/
 automation_py/.sessions/
+automation_py/allure_results/
+automation_py/.venv/
 *.pyc
 
 # 运行产物
