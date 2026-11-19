@@ -11,6 +11,7 @@ EDITOR_URL_PATTERN = "purchaseAudit/reportEditor.html"
 class AuditReviewPage:
     def __init__(self, session, audit_id: str):
         self.session = session
+        self.audit_id = audit_id
         self.page = session.page
         cfg = Config.load()
         self.page.goto(cfg.base_url + REVIEW_PATH + audit_id, wait_until="domcontentloaded")
@@ -18,11 +19,22 @@ class AuditReviewPage:
         self.page.wait_for_timeout(1000)
 
     # ── 审计报告保存（OnlyOffice 编辑器）──────────────────────
+    def _report_status(self) -> int:
+        from api.audit_api import AuditApi
+
+        try:
+            data = AuditApi(self.session).review(self.audit_id)
+        except Exception:
+            return 0
+        report = data.get("report") or (data.get("reports") or [{}])[0]
+        return int(report.get("reportStatus") or 0)
+
     def ensure_report_saved(self) -> None:
-        report_info = self.page.locator("#reportInfo").inner_text()
-        if "已保存" in report_info:
+        status = self._report_status()
+        if status == 2:
             print("[S16] 审计报告已是已保存状态")
             return
+
         edit_button = self.page.locator("#reportInfo .report-edit")
         if edit_button.count() > 0:
             edit_button.first.click()
@@ -38,27 +50,35 @@ class AuditReviewPage:
 
         editor = browser_helpers.get_frame(self.page, EDITOR_URL_PATTERN, timeout_ms=30000)
         editor.locator("#saveReportBtn").wait_for(state="visible", timeout=60000)
-        # 等 OnlyOffice 初始化完成（状态文本变为“可编辑”，或按钮可用）
+        # 等 OnlyOffice 真正初始化完成：状态文本必须变“可编辑”
         editor.wait_for_function(
             """() => {
-                const btn = document.querySelector('#saveReportBtn');
                 const state = document.querySelector('#state');
-                return !!btn && !btn.disabled
-                    && ((state && /可编辑/.test(state.innerText || '')) || !btn.disabled);
+                const btn = document.querySelector('#saveReportBtn');
+                return !!btn && !!state && /可编辑/.test(state.innerText || '');
             }""",
-            timeout=90000,
+            timeout=120000,
         )
+        editor.wait_for_timeout(1500)
         editor.locator("#saveReportBtn").click()
-        for _ in range(180):
-            if not any(EDITOR_URL_PATTERN in f.url for f in self.page.frames):
-                break
-            text = editor.locator("#state").inner_text() if any(
-                EDITOR_URL_PATTERN in f.url for f in self.page.frames) else "已关闭"
-            if "已保存" in text or "正在关闭" in text:
-                break
-            editor.wait_for_timeout(500)
-        self.page.wait_for_timeout(1500)
-        print("[S16] 审计报告已触发保存")
+
+        for _ in range(120):  # 最多 60s
+            if self._report_status() == 2:
+                print("[S16] 审计报告已保存（服务端确认 reportStatus=2）")
+                return
+            self.page.wait_for_timeout(500)
+        # 仍未保存：若编辑器还在，重试一次保存
+        if any(EDITOR_URL_PATTERN in f.url for f in self.page.frames):
+            try:
+                editor.locator("#saveReportBtn").click()
+            except Exception:
+                pass
+            for _ in range(60):
+                if self._report_status() == 2:
+                    print("[S16] 审计报告已保存（重试后服务端确认）")
+                    return
+                self.page.wait_for_timeout(500)
+        raise RuntimeError("审计报告保存失败：OnlyOffice 编辑器未把报告保存为 reportStatus=2")
 
     # ── 提交主任审批 ─────────────────────────────────────────
     def submit_review(self, opinion: str) -> None:

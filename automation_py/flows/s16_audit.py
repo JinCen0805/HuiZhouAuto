@@ -7,6 +7,8 @@
 """
 from __future__ import annotations
 
+import os
+
 from api.audit_api import AuditApi
 from api.audit_report import save_report_via_callback
 from api.document_api import auditor_candidates, find_audit, push_audit
@@ -73,14 +75,16 @@ def s16_audit(hp_session, auditor_session, director_session, ctx: dict) -> dict:
 
     # 保存审计报告：线上必须由 OnlyOffice 编辑器真实保存（不允许伪造回调）；
     # 本地为了免开编辑器，使用同一协议的本地回调落库。
-    if is_local:
-        save_report_via_callback(auditor_session, audit_id)
-        print("[S16] 审计报告已保存（本地回调）")
-    else:
+    save_mode = os.environ.get("HP_AUDIT_SAVE_MODE", "auto").strip().lower()
+    use_editor = (not is_local) or save_mode == "editor"
+    if use_editor:
         from pages.audit_review import AuditReviewPage
 
         AuditReviewPage(auditor_session, audit_id).ensure_report_saved()
         print("[S16] 审计报告已保存（OnlyOffice 编辑器）")
+    else:
+        save_report_via_callback(auditor_session, audit_id)
+        print("[S16] 审计报告已保存（本地回调）")
 
     detail = api.detail(audit_id)
     if int(detail.get("auditStatus") or 0) < 2:
