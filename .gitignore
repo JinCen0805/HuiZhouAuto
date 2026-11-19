@@ -23,3 +23,6 @@ automation/.sessions/
 
 # 分析期临时产物（已保留有价值内容，其余不需要）
 analysis/manual/images2/
+
+# IDE
+.idea/
