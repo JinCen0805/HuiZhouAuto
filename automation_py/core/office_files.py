@@ -43,9 +43,9 @@ def download_file(file_id: str) -> bytes:
     return resp.content
 
 
-def upload_docx(content: bytes, file_name: str, user_id: str) -> str:
-    files = {"file": (file_name or "upload.docx", content,
-                      "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+def upload_file(content: bytes, file_name: str, user_id: str,
+                content_type: str = "application/octet-stream") -> str:
+    files = {"file": (file_name or "upload.bin", content, content_type)}
     data = {"userId": user_id, "lastModifiedDate": str(int(time.time() * 1000))}
     resp = requests.post(file_upload_url(), files=files, data=data, timeout=60)
     body = resp.json() or {}
@@ -53,6 +53,12 @@ def upload_docx(content: bytes, file_name: str, user_id: str) -> str:
     if resp.status_code != 200 or not file_id:
         raise RuntimeError(f"上传文件失败：HTTP {resp.status_code} {resp.text[:300]}")
     return file_id
+
+
+def upload_docx(content: bytes, file_name: str, user_id: str) -> str:
+    return upload_file(
+        content, file_name, user_id,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 
 def _b64(data: bytes) -> str:

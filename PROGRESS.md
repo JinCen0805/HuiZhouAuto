@@ -86,3 +86,15 @@
   - 开关 `HP_CONTENT_FILL=1`（仅本地/测试环境）
   - 本地 P2 验证：284.49s，status=20；抽查文档确认项目名/概况/预算表/审计明细已写入（需求书 documentVersion=2、审计报告 reportVersion=2）
   - 单测 +2（`tests/unit/test_doc_content.py`），默认回归 43 passed / 4 skipped
+
+## 采购方式可选择（本地增强）
+
+- 支持自主采购方式：1 委托采购 / 2 比选采购（默认）/ 3 竞争谈判采购 /
+  4 唯一来源谈判采购（需唯一性论证会议纪要附件）/ 7 议（比）价采购（需议比价方式）。
+- 配置方式：环境变量 `HP_PURCHASE_METHOD`、`HP_IN_HOSPITAL_PRICE_TYPE`、
+  `HP_UNIQUENESS_ATTACHMENT`、`HP_BID_EVALUATION_FORM`；或单入口参数
+  `--purchase-method/--in-hospital-price-type/--uniqueness-attachment/--bid-evaluation-form`。
+- 已本地全链验证：2（历史）、3（292.34s）、7/院内议价（292.47s）、4（293.41s），均 status=9；
+  1 委托采购（293.05s）均 status=9。
+- 新增单测 `tests/unit/test_procurement_method.py`。
+- 本地计划耗尽时用 `scripts/seed_local_plan.py` 克隆种子计划；默认回归 50 passed / 4 skipped。

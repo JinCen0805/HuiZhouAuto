@@ -42,6 +42,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--request-code", default="",
                         help="续跑指定申请单号；不传则找最近一条 UI自动化-* 记录")
     parser.add_argument("--retries", type=int, default=1, help="失败重试次数")
+    parser.add_argument("--purchase-method", default="",
+                        help="采购方式：1 委托采购 / 2 比选采购(默认) / 3 竞争谈判 / 4 唯一来源 / 7 院内议比价")
+    parser.add_argument("--in-hospital-price-type", default="",
+                        help="议比价方式：1 院内议价 / 2 院内比价（方式=7 时必填，默认 1）")
+    parser.add_argument("--purchase-category", default="",
+                        help="采购类别：0 政府采购 / 1 自主采购（默认按申请单自动判断）")
+    parser.add_argument("--uniqueness-attachment", default="",
+                        help="唯一来源谈判的唯一性论证会议纪要文件路径")
+    parser.add_argument("--bid-evaluation-form", default="",
+                        help="采购办主任评标方式：0 综合评分 / 1 最低评标价法（默认 0）")
     parser.add_argument("--headed", action="store_true", help="显示浏览器窗口")
     parser.add_argument("--keep-browser", action="store_true", help="结束后保留浏览器（调试）")
     return parser.parse_args()
@@ -89,6 +99,16 @@ def main() -> int:
                 "department_id": department_id,
                 "survey_end_minutes": 1.5,
             }
+            if args.purchase_method:
+                ctx["purchase_method"] = args.purchase_method
+            if args.in_hospital_price_type:
+                ctx["in_hospital_price_type"] = int(args.in_hospital_price_type)
+            if args.purchase_category:
+                ctx["purchase_category"] = args.purchase_category
+            if args.uniqueness_attachment:
+                ctx["uniqueness_attachment"] = args.uniqueness_attachment
+            if args.bid_evaluation_form:
+                ctx["bid_evaluation_form"] = args.bid_evaluation_form
             if args.request_code:
                 ctx["request_code"] = args.request_code
             if args.resume:

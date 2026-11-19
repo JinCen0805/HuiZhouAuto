@@ -23,11 +23,24 @@ class ProcurementApplyPage:
     # ── 发起采购申请 ─────────────────────────────────────────
     def _selectable_buttons(self):
         return self.frame.locator(
-            "button[lay-event='singleLaunch']:not(.operation-disabled)"
+            "button[lay-event='singleLaunch']:not(.operation-disabled):visible"
         )
 
     def selectable_plan_count(self) -> int:
         return self._selectable_buttons().count()
+
+    def selectable_plan_entries(self) -> list[dict]:
+        """返回当前可发起计划列表（索引 + 行文本），用于跳过不可用计划。"""
+        entries = []
+        buttons = self._selectable_buttons()
+        for index in range(buttons.count()):
+            try:
+                row = buttons.nth(index).locator("xpath=ancestor::tr")
+                text = row.inner_text(timeout=3000).strip()
+            except Exception:  # noqa: BLE001
+                text = ""
+            entries.append({"index": index, "text": text})
+        return entries
 
     def selectable_plan_text(self, index: int = 0) -> str:
         buttons = self._selectable_buttons()
@@ -43,7 +56,8 @@ class ProcurementApplyPage:
     def click_single_launch(self, index: int = 0):
         """点击第 index 条可发起的“单独发起”，返回新增采购申请的 layer iframe。"""
         button = self._selectable_buttons().nth(index)
-        button.click()
+        button.scroll_into_view_if_needed(timeout=5000)
+        button.click(force=True, timeout=10000)
         return browser_helpers.get_frame(self.page, "procurementApply/edit.html")
 
     def fill_draft(self, edit_frame, data: dict) -> None:

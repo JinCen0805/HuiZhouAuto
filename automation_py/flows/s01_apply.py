@@ -16,12 +16,22 @@ def s01_apply(session, ctx: dict) -> dict:
     assert_true(bool(ctx["department_id"]), f"用户信息缺少 organizationId：{str(info)[:200]}")
 
     page = ProcurementApplyPage(session)
-    candidate_count = page.selectable_plan_count()
-    assert_true(candidate_count > 0, "没有可发起的预算计划（非本部门/已引用？）")
+    assert_true(page.selectable_plan_count() > 0, "没有可发起的预算计划（非本部门/已引用？）")
+    tried: set[str] = set()
     saved = False
-    for index in range(min(candidate_count, 5)):
-        ctx["plan_text"] = page.selectable_plan_text(index)
-        edit_frame = page.click_single_launch(index)
+    for _attempt in range(10):
+        entries = page.selectable_plan_entries()
+        candidate = next((e for e in entries if e["text"] not in tried), None)
+        if candidate is None:
+            break
+        tried.add(candidate["text"])
+        ctx["plan_text"] = candidate["text"]
+        try:
+            edit_frame = page.click_single_launch(candidate["index"])
+        except Exception as exc:  # noqa: BLE001 - 列表刷新导致索引失效时跳过
+            print(f"[S01] 打开计划失败，跳过：{str(exc)[:80]}")
+            page.page.wait_for_timeout(800)
+            continue
         page.fill_draft(edit_frame, {
             "project_name": ctx["project_name"],
             "purchase_content": "自动化测试采购内容：用于验证采购前置流程自动化的物资采购。",
@@ -32,7 +42,7 @@ def s01_apply(session, ctx: dict) -> dict:
             print(f"[S01] 选中预算计划：{ctx['plan_text'][:120]}")
             break
         print(f"[S01] 该预算计划不可用，尝试下一条：{ctx['plan_text'][:80]}")
-    assert_true(saved, "前 5 条可发起预算计划均保存草稿失败")
+    assert_true(saved, f"可发起预算计划均保存草稿失败（已尝试 {len(tried)} 条）")
     print(f"[S01] 草稿已保存：{ctx['project_name']}")
 
     page.open_applications_tab()

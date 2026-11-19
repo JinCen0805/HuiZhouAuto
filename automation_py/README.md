@@ -117,3 +117,19 @@ $env:HP_ENV='online'
 $env:HP_BASE_URL='http://172.16.29.215'
 python scripts/online_smoke.py
 ```
+## 采购方式选择（S19）
+
+```powershell
+python scripts/run_full_chain.py --purchase-method 7 --in-hospital-price-type 2
+python scripts/run_full_chain.py --purchase-method 1
+python scripts/run_full_chain.py --purchase-method 4 --uniqueness-attachment "D:\path\纪要.pdf"
+```
+
+支持：1 委托采购 / 2 比选（默认）/ 3 竞争谈判 / 4 唯一来源（需纪要） /
+7 院内议比价（需议比价方式）。详见 `../docs/采购方式选择.md`。
+
+## 本地预算计划耗尽时
+
+```powershell
+python scripts/seed_local_plan.py --count 10
+```
