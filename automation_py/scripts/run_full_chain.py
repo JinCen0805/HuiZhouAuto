@@ -1,0 +1,137 @@
+#!/usr/bin/env python
+"""采购前置全链单入口：一条命令跑 P0→status=9，支持续跑/重试/报告。
+
+用法（在 automation_py 目录）：
+    python scripts/run_full_chain.py                     # 全新全链
+    python scripts/run_full_chain.py --resume            # 找最近未完成申请续跑
+    python scripts/run_full_chain.py --resume --request-code FW-YWB-CG20260123
+    python scripts/run_full_chain.py --from S15          # 从指定步骤开始
+    python scripts/run_full_chain.py --headed            # 显示浏览器
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from api.hp_api import find_latest_request, get_user_info  # noqa: E402
+from core import browser as browser_helpers  # noqa: E402
+from core.config import Config  # noqa: E402
+from core.reporter import new_run_id  # noqa: E402
+from core.session import BrowserSession  # noqa: E402
+from flows.orchestrator import run_chain  # noqa: E402
+
+ROLE_SPECS = {
+    "applicant": ("cbbm1", "采购交易系统", "承办部门经办"),
+    "supervisor": ("jjzr", "纪检监察平台", "纪检监察主任"),
+    "director": ("zhaoliu", "采购交易系统", "承办部门主任"),
+    "auditor": ("sjyj", "纪检监察平台", "审计员"),
+    "auditDirector": ("sjbzr", "纪检监察平台", "审计部主任"),
+    "finance": ("zhoujiu", "采购交易系统", "财务部主任"),
+    "hpAuditDirector": ("sjbzr", "采购交易系统", "审计部主任"),
+    "procurementDirector": ("bailu", "采购交易系统", "采购执行部门主任"),
+    "jjjcDirector": ("jjzr", "采购交易系统", "纪检主任"),
+    "officeDirector": ("baiqi", "采购交易系统", "医院办公室主任"),
+    "deptLeader": ("libai", "采购交易系统", "承办部门分管院领导"),
+    "viceLeader": ("fgld", "采购交易系统", "分管领导"),
+    "vicePresident": ("fgyld", "采购交易系统", "分管院领导"),
+    "supplier1": ("ybjcsgys1", "采购交易系统", "供应商"),
+    "supplier2": ("ybjcsgys2", "采购交易系统", "供应商"),
+    "supplier3": ("ybjcsgys3", "采购交易系统", "供应商"),
+}
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="采购前置全链编排")
+    parser.add_argument("--run-id", default="", help="运行标记；默认 UI自动化-时间戳")
+    parser.add_argument("--from", dest="start_from", default="S01",
+                        help="起始步骤（S01/S04/.../S20）")
+    parser.add_argument("--resume", action="store_true",
+                        help="按申请单当前状态自动续跑")
+    parser.add_argument("--request-code", default="",
+                        help="续跑指定申请单号；不传则找最近一条 UI自动化-* 记录")
+    parser.add_argument("--retries", type=int, default=1, help="失败重试次数")
+    parser.add_argument("--headed", action="store_true", help="显示浏览器窗口")
+    parser.add_argument("--keep-browser", action="store_true", help="结束后保留浏览器（调试）")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    cfg = Config.load()
+    run_id = args.run_id or new_run_id()
+
+    # 纪检/审计账号的登录 key 在本地 Redis 需要同步（DB9→DB7）
+    try:
+        from scripts.local_env import sync_redis_keys
+
+        synced = sync_redis_keys(["jjzr", "sjyj", "sjbzr"])
+        if synced:
+            print(f"[CLI] Redis key 同步：{synced}")
+    except Exception as exc:  # noqa: BLE001 - 非本地环境无需
+        print(f"[CLI] Redis key 同步跳过：{exc}")
+
+    from playwright.sync_api import sync_playwright
+
+    sessions: dict[str, BrowserSession] = {}
+    browser = None
+    try:
+        with sync_playwright() as pw:
+            browser = browser_helpers.launch(pw, cfg, headless=not args.headed)
+            for key, (username, platform, role) in ROLE_SPECS.items():
+                print(f"[CLI] 登录 {key}: {username}（{platform}/{role}）")
+                session = BrowserSession(
+                    browser, cfg, username, platform,
+                    role_keyword=role, use_cache=True,
+                )
+                session.open()
+                sessions[key] = session
+
+            info = get_user_info(sessions["applicant"])
+            department_id = info["organizationId"]
+            ctx = {
+                "run_id": run_id,
+                "project_name": f"{run_id}-全链",
+                "department_id": department_id,
+                "survey_end_minutes": 1.5,
+            }
+            if args.request_code:
+                ctx["request_code"] = args.request_code
+            if args.resume:
+                record = find_latest_request(
+                    sessions["applicant"], department_id,
+                    prefix="UI自动化-",
+                )
+                if record is None:
+                    print("[CLI] 未找到可续跑的 UI自动化-* 申请，改为全新全链")
+                else:
+                    ctx["request_code"] = record["requestCode"]
+                    ctx["project_name"] = record["requestName"]
+                    print(f"[CLI] 续跑申请：{record['requestCode']} {record['requestName']}")
+
+            result = run_chain(
+                sessions, ctx=ctx, run_id=run_id,
+                start_from=args.start_from, retries=args.retries,
+                resume=args.resume,
+            )
+            print(f"\n[CLI] 结果：{result.status}，final_status={result.final_status}")
+            print(f"[CLI] JSON 报告：{result.report_json}")
+            print(f"[CLI] HTML 报告：{result.report_html}")
+            return 0 if result.status == "success" else 1
+    finally:
+        if not args.keep_browser:
+            for session in sessions.values():
+                session.close()
+            if browser is not None:
+                try:
+                    browser.close()
+                except Exception:  # noqa: BLE001
+                    pass
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -10,20 +10,27 @@ from flows.common import wait_until
 
 def s17_final_confirmation(session, director_session, ctx: dict) -> dict:
     record = get_purchase_request(session, ctx["request_code"], ctx["department_id"])
-    assert_true(int(record.get("status") or 0) == 20,
-                f"S17 前置状态应为 20 审计通过待二次确认，实际 {record.get('status')}")
-    docs = documents_of_request(session, record["uuid"]).get("requirement") or {}
-    document_uuid = docs.get("documentUuid") or ctx.get("requirement_doc_uuid")
-    assert_true(bool(document_uuid), "未找到采购需求书文档")
-    second_confirmation(session, record["uuid"], document_uuid)
-    wait_until(
-        lambda: (lambda r: r if r and int(r.get("status") or 0) == 16 else None)(
-            get_purchase_request(session, ctx["request_code"], ctx["department_id"])
-        ),
-        timeout_s=20,
-        message="终稿确认后未进入 16 编制文件审批中",
-    )
-    print("[S17] 终稿确认已提交，status=16")
+    status = int(record.get("status") or 0)
+    if status in (19, 18, 10, 11, 9):
+        print(f"[S17] 当前状态 {status}，终稿确认已完成，跳过")
+        return ctx
+    assert_true(status in (20, 16),
+                f"S17 前置状态应为 20/16，实际 {status}")
+    if status == 20:
+        docs = documents_of_request(session, record["uuid"]).get("requirement") or {}
+        document_uuid = docs.get("documentUuid") or ctx.get("requirement_doc_uuid")
+        assert_true(bool(document_uuid), "未找到采购需求书文档")
+        second_confirmation(session, record["uuid"], document_uuid)
+        wait_until(
+            lambda: (lambda r: r if r and int(r.get("status") or 0) == 16 else None)(
+                get_purchase_request(session, ctx["request_code"], ctx["department_id"])
+            ),
+            timeout_s=20,
+            message="终稿确认后未进入 16 编制文件审批中",
+        )
+        print("[S17] 终稿确认已提交，status=16")
+    else:
+        print("[S17] 状态 16：终稿确认已提交，直接办理主任审批")
 
     api = ApprovalApi(director_session)
     task = wait_until(

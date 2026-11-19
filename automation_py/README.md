@@ -68,3 +68,27 @@ automation_py/
 $env:HP_ARGUMENT_MQ_BRIDGE='1'
 & $py -m pytest tests/flows/test_p1_argument.py -v -s
 ```
+
+## WP8 全链编排（单入口 / 续跑 / 重试 / 报告）
+
+一条命令跑完采购前置全流程（S01→S20，最终申请单 status=9 采购中）：
+
+```powershell
+cd D:\Desktop\HuiZhouAuto\automation_py
+$py = "C:\Users\Grayson\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe"
+& $py scripts/run_full_chain.py            # 全新全链（约 4~5 分钟）
+& $py scripts/run_full_chain.py --headed   # 显示浏览器窗口
+```
+
+续跑（按申请单当前状态自动定位起始步骤）：
+
+```powershell
+& $py scripts/run_full_chain.py --resume
+& $py scripts/run_full_chain.py --resume --request-code FW-YWB-CG20260123
+& $py scripts/run_full_chain.py --from S15
+```
+
+- 失败默认重试 1 次（`--retries N` 可调；S01 不重试，避免重复建单）。
+- 报告：`reports/<runId>/report.json` + `report.html`（步骤/耗时/状态/错误/申请单号与状态）。
+- 退出码：成功 0，失败 1，便于 CI 集成。
+- 续跑状态映射：22→S04、8→S05、7→S06、4→S10、15/16→S15、17→S16、20→S17、19/18→S18、10→S19、11→S20、9→已完成。

@@ -19,9 +19,11 @@ def s05_package(session, ctx: dict) -> dict:
     editor = page.open_editor(ctx["request_code"])
     subpackage_name = f"{ctx['run_id']}-子包01"
     page.add_subpackage(editor, subpackage_name)
-    if not page.editor_contains(editor, subpackage_name):
-        body = editor.locator("body").inner_text(timeout=5000)
-        raise AssertionError(f"新增子包后编辑页未出现子包名 {subpackage_name!r}：{body[:300]!r}")
+    wait_until(
+        lambda: page.editor_contains(editor, subpackage_name),
+        timeout_s=20,
+        message=f"新增子包后编辑页未出现子包名 {subpackage_name!r}",
+    )
     print(f"[S05] 子包已保存：{subpackage_name}")
     page.close_editor()
 

@@ -22,8 +22,13 @@ def s20_execution(applicant_session, director_session, dept_leader_session,
                   procurement_director_session, vice_leader_session,
                   vice_president_session, ctx: dict) -> dict:
     record = get_purchase_request(applicant_session, ctx["request_code"], ctx["department_id"])
-    assert_true(int(record.get("status") or 0) == 11,
-                f"S20 前置状态应为 11 待发起采购执行，实际 {record.get('status')}")
+    status = int(record.get("status") or 0)
+    if status == 9:
+        print("[S20] 当前状态 9，采购前置已完成，跳过")
+        ctx["procurement_started"] = True
+        return ctx
+    assert_true(status == 11,
+                f"S20 前置状态应为 11 待发起采购执行，实际 {status}")
     exec_api = ExecutionApi(applicant_session)
     project = wait_until(
         lambda: exec_api.find_by_source_apply(record["uuid"]),

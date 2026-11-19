@@ -20,8 +20,12 @@ def _bt6_task(session, request_uuid: str):
 def s19_method(applicant_session, director_session, procurement_director_session,
                office_director_session, ctx: dict) -> dict:
     record = get_purchase_request(applicant_session, ctx["request_code"], ctx["department_id"])
-    assert_true(int(record.get("status") or 0) == 10,
-                f"S19 前置状态应为 10 待分配采购方式，实际 {record.get('status')}")
+    status = int(record.get("status") or 0)
+    if status == 11:
+        print("[S19] 当前状态 11，采购方式已审批完成，跳过")
+        return ctx
+    assert_true(status == 10,
+                f"S19 前置状态应为 10 待分配采购方式，实际 {status}")
     MethodApi(applicant_session).submit(record["uuid"])
     print("[S19] 采购方式已提交（自主采购/比选采购），进入 BT6")
 

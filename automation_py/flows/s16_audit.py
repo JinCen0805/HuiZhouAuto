@@ -37,6 +37,12 @@ def s16_audit(hp_session, auditor_session, director_session, ctx: dict) -> dict:
     except Exception as exc:  # noqa: BLE001 - 测试环境无需
         print(f"[S16] Redis key 同步跳过：{exc}")
 
+    current = get_purchase_request(hp_session, ctx["request_code"], ctx["department_id"])
+    if current and int(current.get("status") or 0) >= 20:
+        print(f"[S16] 当前状态 {current.get('status')}，审计已完成，跳过")
+        ctx["audit_passed"] = True
+        return ctx
+
     auditor_id = _auditor_user_id(hp_session)
     audit = wait_until(
         lambda: find_audit(hp_session, ctx["request_code"]),

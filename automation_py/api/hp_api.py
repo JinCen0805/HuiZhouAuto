@@ -35,3 +35,9 @@ def get_purchase_request_page(session, department_id: str, size: int = 100) -> l
     if not body.get("success"):
         raise RuntimeError(f"查询采购申请列表失败：{resp.status_code} {str(body)[:200]}")
     return (body.get("data") or {}).get("records") or []
+
+def find_latest_request(session, department_id: str, prefix: str = "UI自动化-") -> dict | None:
+    """按项目名前缀查最近的采购申请（用于 --resume 续跑）。"""
+    records = get_purchase_request_page(session, department_id, size=100)
+    matches = [r for r in records if str(r.get("requestName") or "").startswith(prefix)]
+    return matches[0] if matches else None
