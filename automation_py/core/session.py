@@ -129,8 +129,11 @@ class HttpSession:
         return self.http.request(method, self.url(path), headers=headers, **kwargs)
 
     def cookie_list(self) -> list[dict]:
+        from urllib.parse import urlparse
+
+        domain = urlparse(self.base_url).hostname or "127.0.0.1"
         return [
-            {"name": c.name, "value": c.value, "domain": "127.0.0.1", "path": "/"}
+            {"name": c.name, "value": c.value, "domain": domain, "path": "/"}
             for c in self.http.cookies
         ]
 
@@ -148,7 +151,10 @@ def login_http(username: str, password: str, platform_label: str = "采购交易
     """登录并进入目标平台，返回带 cookie 的会话（失败抛 RuntimeError）。"""
     session = HttpSession(base_url=base_url)
     session.login(username, password)
-    session.goto_index(platform_label, role_keyword)
+    redirect = session.goto_index(platform_label, role_keyword)
+    # 线上（以及部分本地环境）必须在选择平台后访问一次 index/token 地址，
+    # 业务系统才会建立自己的会话；否则后续接口报「系统异常」。
+    session.get(redirect)
     return session
 
 
@@ -181,7 +187,7 @@ class BrowserSession:
 
     @property
     def state_path(self) -> Path:
-        safe = f"{self.username}-{self.platform}".replace("/", "_")
+        safe = f"{self.username}-{self.platform}-{self.cfg.host}".replace("/", "_")
         return STATE_DIR / f"{safe}.json"
 
     def open(self) -> "BrowserSession":
@@ -199,7 +205,10 @@ class BrowserSession:
 
         self.context = browser_helpers.new_context(self.browser, self.http.cookie_list())
         self.page = self.context.new_page()
-        browser_helpers.open_hp(self.page, self.cfg.base_url)
+        target = self.http.redirect_url or browser_helpers.HP_INDEX
+        if target.startswith("/"):
+            target = self.cfg.base_url + target
+        browser_helpers.open_url(self.page, target)
         if not self._menu_ok():
             raise RuntimeError(f"菜单加载失败（{self.username}）")
         self._save_state()

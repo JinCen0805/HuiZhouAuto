@@ -49,16 +49,18 @@ def s11_extract(session, ctx: dict) -> dict:
     ctx["gather_time"] = gather_start.strftime(fmt)
     api.start_extract(payload)
 
-    # 本地环境：HP 定时任务被本地栈关闭，outbox relay 不执行；
-    # 用本地桥接脚本把待发布的建项消息直接投递到 RabbitMQ（测试环境无需此步）。
-    try:
-        from scripts.local_draw_bridge import publish_pending
+    # 本地环境：HP 定时任务被本地栈关闭，outbox relay 不执行，需要本地桥接；
+    # 线上环境由真实 relay/MQ 完成，禁止使用本地桥接。
+    is_local = bool(getattr(getattr(session, "cfg", None), "is_local", False))
+    if is_local:
+        try:
+            from scripts.local_draw_bridge import publish_pending
 
-        bridged = publish_pending()
-        if bridged:
-            print(f"[S11] 本地 MQ 桥接：已投递 {bridged} 条建项消息")
-    except Exception as exc:  # noqa: BLE001 - 测试环境没有 docker/本地库，跳过即可
-        print(f"[S11] 本地 MQ 桥接跳过：{exc}")
+            bridged = publish_pending()
+            if bridged:
+                print(f"[S11] 本地 MQ 桥接：已投递 {bridged} 条建项消息")
+        except Exception as exc:  # noqa: BLE001 - 本地 docker 不可用时跳过
+            print(f"[S11] 本地 MQ 桥接跳过：{exc}")
 
     # 等 professor 建项（本地默认隔离时此处会超时，抛出明确环境错误）
     section_code = f"HP-SURVEY-{survey_uuid}"
@@ -88,13 +90,14 @@ def s11_extract(session, ctx: dict) -> dict:
     print(f"[S11] 已勾选专家：{expert_uuids}")
 
     # mock 电话确认（keypress=1 = 参加）
-    # 本地环境：先补齐 professor 回传事件的队列绑定（HP 本地未声明）
-    try:
-        from scripts.local_draw_bridge import ensure_result_bindings
+    # 仅本地环境需要补齐 professor 回传事件的队列绑定
+    if is_local:
+        try:
+            from scripts.local_draw_bridge import ensure_result_bindings
 
-        ensure_result_bindings()
-    except Exception as exc:  # noqa: BLE001 - 测试环境无需
-        print(f"[S11] 结果绑定补齐跳过：{exc}")
+            ensure_result_bindings()
+        except Exception as exc:  # noqa: BLE001 - 本地 docker 不可用时跳过
+            print(f"[S11] 结果绑定补齐跳过：{exc}")
 
     # callid 以 drawProjectExpertId 为键；需用项目详情把 expertId 映射过去
     call_ids = wait_until(

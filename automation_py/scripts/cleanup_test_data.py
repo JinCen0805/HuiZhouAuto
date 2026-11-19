@@ -85,6 +85,12 @@ def main() -> int:
     args = parser.parse_args()
     prefix = args.run_id or args.prefix
 
+    # 只允许本地环境执行（线上禁止直接改库）
+    import os
+    if os.environ.get("HP_ENV", "local").lower() == "online":
+        print("当前为线上环境，禁止执行数据清理脚本（线上请走业务作废流程）。")
+        return 2
+
     requests = mysql(
         "SELECT uuid, request_code, request_name FROM hospital_procurement.hospital_purchase_request "
         f"WHERE request_name LIKE {quote(prefix + '%')} AND is_deleted=0;"

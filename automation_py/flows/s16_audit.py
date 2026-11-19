@@ -27,15 +27,17 @@ def _auditor_user_id(hp_session) -> str:
 
 def s16_audit(hp_session, auditor_session, director_session, ctx: dict) -> dict:
     """完成审计推送、报告保存、审理与主任审批，断言申请单 status=20。"""
-    # 本地环境：同步审计账号在纪检平台的登录 key（redis DB9 → DB7）
-    try:
-        from scripts.local_env import sync_redis_keys
+    # 仅本地环境需要同步审计账号在纪检平台的登录 key（DB9→DB7）
+    is_local = bool(getattr(getattr(hp_session, "cfg", None), "is_local", False))
+    if is_local:
+        try:
+            from scripts.local_env import sync_redis_keys
 
-        synced = sync_redis_keys(["sjyj", "sjbzr"])
-        if synced:
-            print(f"[S16] 本地 Redis key 同步：{synced}")
-    except Exception as exc:  # noqa: BLE001 - 测试环境无需
-        print(f"[S16] Redis key 同步跳过：{exc}")
+            synced = sync_redis_keys(["sjyj", "sjbzr"])
+            if synced:
+                print(f"[S16] 本地 Redis key 同步：{synced}")
+        except Exception as exc:  # noqa: BLE001 - 本地 docker 不可用时跳过
+            print(f"[S16] Redis key 同步跳过：{exc}")
 
     current = get_purchase_request(hp_session, ctx["request_code"], ctx["department_id"])
     if current and int(current.get("status") or 0) >= 20:
@@ -69,9 +71,16 @@ def s16_audit(hp_session, auditor_session, director_session, ctx: dict) -> dict:
         report = created.get("report") or {}
         print(f"[S16] 已生成审计报告：{report.get('fileName')}")
 
-    # 保存审计报告（本地自动化用回调协议落库；真实场景由 OnlyOffice 编辑器保存）
-    save_report_via_callback(auditor_session, audit_id)
-    print("[S16] 审计报告已保存")
+    # 保存审计报告：线上必须由 OnlyOffice 编辑器真实保存（不允许伪造回调）；
+    # 本地为了免开编辑器，使用同一协议的本地回调落库。
+    if is_local:
+        save_report_via_callback(auditor_session, audit_id)
+        print("[S16] 审计报告已保存（本地回调）")
+    else:
+        from pages.audit_review import AuditReviewPage
+
+        AuditReviewPage(auditor_session, audit_id).ensure_report_saved()
+        print("[S16] 审计报告已保存（OnlyOffice 编辑器）")
 
     detail = api.detail(audit_id)
     if int(detail.get("auditStatus") or 0) < 2:

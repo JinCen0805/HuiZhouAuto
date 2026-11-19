@@ -18,6 +18,8 @@ ENV_FILE_PATH = PACKAGE_ROOT / ".env.local"
 
 # 固定环境路径（本机）
 DEFAULT_BASE_URL = "http://127.0.0.1"
+DEFAULT_ENV = "local"
+ONLINE_BASE_URL = "http://172.16.29.215"
 DEFAULT_CHROMIUM = (
     r"C:\Users\Grayson\AppData\Local\ms-playwright"
     r"\chromium-1234\chrome-win64\chrome.exe"
@@ -49,6 +51,7 @@ def load_env_file(path: Path | None = None) -> dict[str, str]:
 @dataclass
 class Config:
     base_url: str = DEFAULT_BASE_URL
+    environment: str = DEFAULT_ENV
     chromium_path: str = DEFAULT_CHROMIUM
     python_path: str = DEFAULT_PYTHON
     env_file: dict[str, str] = field(default_factory=load_env_file)
@@ -57,9 +60,32 @@ class Config:
     @classmethod
     def load(cls) -> "Config":
         cfg = cls()
+        # 环境切换：HP_ENV=local/online，HP_BASE_URL 指定线上入口
+        cfg.environment = os.environ.get("HP_ENV", cfg.environment)
+        default_url = ONLINE_BASE_URL if cfg.environment == "online" else cfg.base_url
+        cfg.base_url = os.environ.get("HP_BASE_URL", default_url).rstrip("/")
         if FLOW_CONFIG_PATH.exists():
             cfg.flow = json.loads(FLOW_CONFIG_PATH.read_text(encoding="utf-8"))
         return cfg
+
+    @property
+    def is_local(self) -> bool:
+        from urllib.parse import urlparse
+
+        host = (urlparse(self.base_url).hostname or "").lower()
+        return self.environment != "online" and host in ("127.0.0.1", "localhost")
+
+    @property
+    def host(self) -> str:
+        from urllib.parse import urlparse
+
+        return (urlparse(self.base_url).hostname or "127.0.0.1").lower()
+
+    def professor_mock_base(self) -> str:
+        value = self.env("HP_PROFESSOR_MOCK_BASE")
+        if value:
+            return value.rstrip("/")
+        return self.base_url + "/professor"
 
     def env(self, key: str, default: str | None = None) -> str | None:
         """优先进程环境变量，其次 .env.local。"""

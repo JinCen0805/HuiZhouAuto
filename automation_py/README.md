@@ -92,3 +92,20 @@ $py = "C:\Users\Grayson\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\pytho
 - 报告：`reports/<runId>/report.json` + `report.html`（步骤/耗时/状态/错误/申请单号与状态）。
 - 退出码：成功 0，失败 1，便于 CI 集成。
 - 续跑状态映射：22→S04、8→S05、7→S06、4→S10、15/16→S15、17→S16、20→S17、19/18→S18、10→S19、11→S20、9→已完成。
+
+## 本地 / 线上环境切换
+
+```powershell
+# 本地（默认）
+$env:HP_ENV='local'
+python scripts/env_check.py
+
+# 线上（只读自检；写操作需显式授权）
+$env:HP_ENV='online'
+$env:HP_BASE_URL='http://172.16.29.215'
+python scripts/env_check.py
+```
+
+线上默认禁止写业务数据：`run_full_chain.py` 需要 `HP_ALLOW_ONLINE_WRITES=1` 才执行；
+pytest flows 用例在线上默认 skip；数据清理脚本线上禁止执行。
+详细说明见 `../docs/环境切换.md`。

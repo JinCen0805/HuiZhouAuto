@@ -6,24 +6,9 @@ import pytest
 from core import browser as browser_helpers
 from core.session import BrowserSession
 
-ROLE_SPECS = {
-    "applicant": ("cbbm1", "采购交易系统", "承办部门经办"),
-    "supervisor": ("jjzr", "纪检监察平台", "纪检监察主任"),
-    "director": ("zhaoliu", "采购交易系统", "承办部门主任"),
-    "auditor": ("sjyj", "纪检监察平台", "审计员"),
-    "auditDirector": ("sjbzr", "纪检监察平台", "审计部主任"),
-    "hpAuditDirector": ("sjbzr", "采购交易系统", "审计部主任"),
-    "finance": ("zhoujiu", "采购交易系统", "财务部主任"),
-    "procurementDirector": ("bailu", "采购交易系统", "采购执行部门主任"),
-    "jjjcDirector": ("jjzr", "采购交易系统", "纪检主任"),
-    "officeDirector": ("baiqi", "采购交易系统", "医院办公室主任"),
-    "deptLeader": ("libai", "采购交易系统", "承办部门分管院领导"),
-    "viceLeader": ("fgld", "采购交易系统", "分管领导"),
-    "vicePresident": ("fgyld", "采购交易系统", "分管院领导"),
-    "supplier1": ("ybjcsgys1", "采购交易系统", "供应商"),
-    "supplier2": ("ybjcsgys2", "采购交易系统", "供应商"),
-    "supplier3": ("ybjcsgys3", "采购交易系统", "供应商"),
-}
+from core.env_profile import accounts as _env_accounts
+
+ROLE_SPECS = _env_accounts()
 
 SUPPLIER_ROLES = ("supplier1", "supplier2", "supplier3")
 
@@ -68,3 +53,18 @@ def _reset_ui_between_tests(flow_sessions):
             page.wait_for_timeout(300)
         except Exception:  # noqa: BLE001 - 清理失败不影响主流程
             pass
+
+
+def pytest_collection_modifyitems(config, items):
+    """线上环境未显式允许写操作时，跳过所有 flows 业务用例，避免污染真实数据。"""
+    import os
+    from core.config import Config
+
+    cfg = Config.load()
+    if cfg.is_local or os.environ.get("HP_ALLOW_ONLINE_WRITES") == "1":
+        return
+    import pytest
+
+    skip = pytest.mark.skip(reason="线上环境默认禁止写业务数据；如确需执行请设置 HP_ALLOW_ONLINE_WRITES=1")
+    for item in items:
+        item.add_marker(skip)

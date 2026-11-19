@@ -33,7 +33,13 @@ def _jwt(payload: dict, secret: str) -> str:
 
 
 def save_report_via_callback(session, audit_id: str, timeout_s: int = 30) -> dict:
-    """把审计报告标记为已保存（reportStatus=2）。返回最新 audit detail。"""
+    """把审计报告标记为已保存（reportStatus=2）。返回最新 audit detail。
+
+    仅允许本地环境使用；线上必须由 OnlyOffice 编辑器真实保存，禁止伪造回调。
+    """
+    cfg = getattr(session, "cfg", None)
+    if cfg is not None and not getattr(cfg, "is_local", False):
+        raise RuntimeError("线上环境禁止伪造 OnlyOffice 回调保存审计报告")
     secret = os.getenv("HP_ONLYOFFICE_JWT_SECRET", DEFAULT_SECRET)
     detail = session.api(f"/jjjc/purchaseAudit/{audit_id}/detail").json().get("data") or {}
     reports = detail.get("reports") or []

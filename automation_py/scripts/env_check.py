@@ -34,6 +34,7 @@ from core.session import login_http  # noqa: E402
 
 CFG = Config.load()
 RESULTS: list[dict] = []
+started_global = time.time()
 
 # 账号检查：(账号, 平台, 期望角色关键字)
 CORE_ACCOUNTS = [
@@ -247,10 +248,64 @@ def check_reports_writable() -> str:
     return str(reports)
 
 
+def run_online_checks() -> int:
+    """线上环境只读自检：入口、登录、关键接口、专家 mock、OnlyOffice。"""
+    from core.env_profile import accounts as env_accounts
+
+    print("\n[A] 基础环境")
+    run("Python 版本", check_python)
+    run("依赖导入", check_imports)
+    run("Chromium 存在", check_chromium)
+    run("Playwright 启动浏览器", check_playwright_launch)
+
+    print("\n[B] 线上入口与关键接口")
+    run("线上首页", lambda: http_ok("/HospitalProcurement/index.html"))
+    run("登录页", lambda: http_ok("/Register/public/newLogin/user_login_2.html"))
+    run("动态菜单服务", lambda: http_ok("/nodeJs/menu_Json"))
+    run("专家 mock 已启用", check_mock_enabled)
+    run("采购执行服务", lambda: http_ok("/ProcurementExecution/purchase/purchaseProject/getPage?current=1&size=1"))
+    onlyoffice_url = CFG.env("HP_ONLYOFFICE_HEALTH_URL", "http://172.16.29.214:8099/healthcheck")
+    run("OnlyOffice 健康检查", lambda: http_ok(onlyoffice_url), required=False,
+        hint="确认线上 OnlyOffice 地址可从自动化机器访问")
+
+    print("\n[C] 账号登录（线上测试账号，只读）")
+    seen = set()
+    for _role, (username, platform, role_keyword) in env_accounts().items():
+        if username in seen:
+            continue
+        seen.add(username)
+        if not (CFG.env("HP_PASSWORD_" + username.upper().replace("-", "_")) or CFG.env("HP_PASS")):
+            record(f"账号 {username}", "WARN", "未配置密码，跳过")
+            continue
+        run(f"账号 {username}", lambda u=username, p=platform, r=role_keyword: check_account(u, p, r),
+            required=False)
+
+    print("\n[D] 素材与目录")
+    run("附件素材", check_fixtures)
+    run("业务参数配置", check_flow_config, required=False)
+    run("报告目录可写", check_reports_writable)
+
+    passed = sum(1 for r in RESULTS if r["status"] == "PASS")
+    warned = sum(1 for r in RESULTS if r["status"] == "WARN")
+    failed = sum(1 for r in RESULTS if r["status"] == "FAIL")
+    elapsed = time.time() - started_global
+    print("\n" + "=" * 78)
+    print(f"结果：PASS {passed} / WARN {warned} / FAIL {failed}   耗时 {elapsed:.1f}s")
+    print("=" * 78)
+    if failed:
+        print("存在失败项，请按上面的修复建议处理。")
+        return 1
+    print("线上环境自检通过（只读）。")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--strict", action="store_true", help="WARN 也视为失败")
     args = parser.parse_args()
+
+    if not CFG.is_local:
+        return run_online_checks()
 
     started = time.time()
     print("=" * 78)

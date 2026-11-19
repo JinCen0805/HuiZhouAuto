@@ -48,6 +48,15 @@ def new_context(browser, cookies: list[dict] | None = None, storage_state: str |
     return ctx
 
 
+def open_url(page, url: str, timeout_ms: int = 30000):
+    """打开任意业务入口（含登录后 token 跳转地址），等待页面可用。"""
+    page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+    try:
+        page.wait_for_selector(MENU_READY_SELECTOR, state="attached", timeout=timeout_ms)
+    except Exception:  # noqa: BLE001 - 部分入口菜单异步加载，交给调用方校验
+        pass
+
+
 def open_hp(page, base_url: str, timeout_ms: int = 30000):
     """打开 HP 首页（或纪检监察平台跳转后的首页），等待动态菜单渲染。"""
     page.goto(base_url + HP_INDEX, wait_until="domcontentloaded", timeout=timeout_ms)

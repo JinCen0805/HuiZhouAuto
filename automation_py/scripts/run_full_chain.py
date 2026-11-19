@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -25,24 +26,10 @@ from core.reporter import new_run_id  # noqa: E402
 from core.session import BrowserSession  # noqa: E402
 from flows.orchestrator import run_chain  # noqa: E402
 
-ROLE_SPECS = {
-    "applicant": ("cbbm1", "采购交易系统", "承办部门经办"),
-    "supervisor": ("jjzr", "纪检监察平台", "纪检监察主任"),
-    "director": ("zhaoliu", "采购交易系统", "承办部门主任"),
-    "auditor": ("sjyj", "纪检监察平台", "审计员"),
-    "auditDirector": ("sjbzr", "纪检监察平台", "审计部主任"),
-    "finance": ("zhoujiu", "采购交易系统", "财务部主任"),
-    "hpAuditDirector": ("sjbzr", "采购交易系统", "审计部主任"),
-    "procurementDirector": ("bailu", "采购交易系统", "采购执行部门主任"),
-    "jjjcDirector": ("jjzr", "采购交易系统", "纪检主任"),
-    "officeDirector": ("baiqi", "采购交易系统", "医院办公室主任"),
-    "deptLeader": ("libai", "采购交易系统", "承办部门分管院领导"),
-    "viceLeader": ("fgld", "采购交易系统", "分管领导"),
-    "vicePresident": ("fgyld", "采购交易系统", "分管院领导"),
-    "supplier1": ("ybjcsgys1", "采购交易系统", "供应商"),
-    "supplier2": ("ybjcsgys2", "采购交易系统", "供应商"),
-    "supplier3": ("ybjcsgys3", "采购交易系统", "供应商"),
-}
+from core.env_profile import accounts as _env_accounts
+
+ROLE_SPECS = _env_accounts()
+
 
 
 def parse_args() -> argparse.Namespace:
@@ -63,6 +50,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     cfg = Config.load()
+    if not cfg.is_local and os.environ.get("HP_ALLOW_ONLINE_WRITES") != "1":
+        print("[CLI] 当前为线上环境，未设置 HP_ALLOW_ONLINE_WRITES=1，禁止执行写操作（全链会创建真实数据）。")
+        return 2
     run_id = args.run_id or new_run_id()
 
     # 纪检/审计账号的登录 key 在本地 Redis 需要同步（DB9→DB7）
