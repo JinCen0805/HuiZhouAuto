@@ -39,10 +39,10 @@ ONLINE_ACCOUNTS = {
     "deptLeader": ("libai", "采购交易系统", "承办部门分管院领导"),
     "viceLeader": ("fgld", "采购交易系统", "分管领导"),
     "vicePresident": ("fgyld", "采购交易系统", "分管院领导"),
-    # 线上供应商测试账号（密码见 .env.local 的 HP_PASSWORD_CY_GYS*）
-    "supplier1": ("cy-gys1", "采购交易系统", "供应商"),
-    "supplier2": ("cy-gys2", "采购交易系统", "供应商"),
-    "supplier3": ("cy-gys3", "采购交易系统", "供应商"),
+    # 线上供应商测试账号（与本地一致的团队测试账号，密码见 .env.local 的 HP_PASSWORD_YBJCSGYS*）
+    "supplier1": ("ybjcsgys1", "采购交易系统", "供应商"),
+    "supplier2": ("ybjcsgys2", "采购交易系统", "供应商"),
+    "supplier3": ("ybjcsgys3", "采购交易系统", "供应商"),
 }
 
 
