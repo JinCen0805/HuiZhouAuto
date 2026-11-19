@@ -16,16 +16,23 @@ def s01_apply(session, ctx: dict) -> dict:
     assert_true(bool(ctx["department_id"]), f"用户信息缺少 organizationId：{str(info)[:200]}")
 
     page = ProcurementApplyPage(session)
-    ctx["plan_text"] = page.first_selectable_plan_text()
-    print(f"[S01] 选中预算计划：{ctx['plan_text'][:120]}")
-
-    edit_frame = page.click_single_launch()
-    page.fill_draft(edit_frame, {
-        "project_name": ctx["project_name"],
-        "purchase_content": "自动化测试采购内容：用于验证采购前置流程自动化的物资采购。",
-        "application_reason": "自动化测试申请理由：科室业务需要，申请采购。",
-    })
-    page.save_draft()
+    candidate_count = page.selectable_plan_count()
+    assert_true(candidate_count > 0, "没有可发起的预算计划（非本部门/已引用？）")
+    saved = False
+    for index in range(min(candidate_count, 5)):
+        ctx["plan_text"] = page.selectable_plan_text(index)
+        edit_frame = page.click_single_launch(index)
+        page.fill_draft(edit_frame, {
+            "project_name": ctx["project_name"],
+            "purchase_content": "自动化测试采购内容：用于验证采购前置流程自动化的物资采购。",
+            "application_reason": "自动化测试申请理由：科室业务需要，申请采购。",
+        })
+        if page.save_draft():
+            saved = True
+            print(f"[S01] 选中预算计划：{ctx['plan_text'][:120]}")
+            break
+        print(f"[S01] 该预算计划不可用，尝试下一条：{ctx['plan_text'][:80]}")
+    assert_true(saved, "前 5 条可发起预算计划均保存草稿失败")
     print(f"[S01] 草稿已保存：{ctx['project_name']}")
 
     page.open_applications_tab()
