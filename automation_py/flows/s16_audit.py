@@ -73,6 +73,28 @@ def s16_audit(hp_session, auditor_session, director_session, ctx: dict) -> dict:
         report = created.get("report") or {}
         print(f"[S16] 已生成审计报告：{report.get('fileName')}")
 
+    # 本地/测试环境按审计数据填充报告正文
+    if os.environ.get("HP_CONTENT_FILL") == "1" and is_local:
+        try:
+            from api.hp_api import get_user_info
+            from core.doc_content import fill_audit_report
+            from core.office_files import download_file, update_audit_report, upload_docx
+
+            detail_data = api.detail(audit_id)
+            report = detail_data.get("report") or (detail_data.get("reports") or [{}])[0]
+            if report.get("reportId"):
+                raw = download_file(report["fileId"])
+                filled = fill_audit_report(raw, detail_data)
+                user_id = get_user_info(hp_session).get("userId")
+                new_file_id = upload_docx(
+                    filled, report.get("fileName") or "审计报告.docx", user_id)
+                update_audit_report(
+                    auditor_session, report["reportId"],
+                    int(report.get("reportVersion") or 1), new_file_id)
+                print("[S16] 审计报告正文已按审计数据填充")
+        except Exception as exc:  # noqa: BLE001 - 内容填充失败不阻断主链
+            print(f"[S16] 内容填充跳过：{exc}")
+
     # 保存审计报告：线上必须由 OnlyOffice 编辑器真实保存（不允许伪造回调）；
     # 本地为了免开编辑器，使用同一协议的本地回调落库。
     save_mode = os.environ.get("HP_AUDIT_SAVE_MODE", "auto").strip().lower()

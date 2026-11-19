@@ -74,3 +74,15 @@
 
 - 分支：`main`
 - 提交：WP0~WP9 每包独立提交 + 本地环境/踩坑记录；仓库不含密码。
+
+## 本地增强（产品需求变更后，线上暂缓）
+
+- 环境切换：`HP_ENV=local/online` + `HP_BASE_URL`；账号分组、cookie/redirect 适配、线上只读冒烟`online_smoke.py`。
+- 供应商账号修正：线上/本地统一使用 `ybjcsgys1~3`。
+- S16 线上编辑器保存路径本地验证：`HP_AUDIT_SAVE_MODE=editor` 下 P3 全链通过（302.90s）。
+- **S15/S16 内容填充（新增）**：
+  - `core/office_files.py`（文件下载/上传 + OnlyOffice 回调更新文档）
+  - `core/doc_content.py`（需求书按项目/子包/预算填充；审计报告按审计明细填充）
+  - 开关 `HP_CONTENT_FILL=1`（仅本地/测试环境）
+  - 本地 P2 验证：284.49s，status=20；抽查文档确认项目名/概况/预算表/审计明细已写入（需求书 documentVersion=2、审计报告 reportVersion=2）
+  - 单测 +2（`tests/unit/test_doc_content.py`），默认回归 43 passed / 4 skipped
