@@ -109,3 +109,11 @@ python scripts/env_check.py
 线上默认禁止写业务数据：`run_full_chain.py` 需要 `HP_ALLOW_ONLINE_WRITES=1` 才执行；
 pytest flows 用例在线上默认 skip；数据清理脚本线上禁止执行。
 详细说明见 `../docs/环境切换.md`。
+
+线上只读冒烟（阶段0，不写业务数据）：
+
+```powershell
+$env:HP_ENV='online'
+$env:HP_BASE_URL='http://172.16.29.215'
+python scripts/online_smoke.py
+```
