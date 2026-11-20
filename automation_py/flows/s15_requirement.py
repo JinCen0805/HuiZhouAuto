@@ -7,9 +7,7 @@ from api.document_api import (
     list_templates,
     submit_draft,
 )
-import os
-
-from api.hp_api import get_purchase_request, get_user_info
+from api.hp_api import get_purchase_request
 from api.approval_api import ApprovalApi
 from core.assert_helper import assert_true
 from flows.common import wait_until
@@ -48,30 +46,6 @@ def s15_requirement(session, director_session, ctx: dict) -> dict:
             idempotency_key=f"{ctx['run_id']}-REQ",
         )
         document_uuid = document["documentUuid"]
-
-        # 本地/测试环境按项目数据填充需求书正文（线上默认关闭，按业务要求再开）
-        if os.environ.get("HP_CONTENT_FILL") == "1" and getattr(
-                getattr(session, "cfg", None), "is_local", False):
-            try:
-                from core.doc_content import fill_requirement_document
-                from core.office_files import download_file, update_purchase_document, upload_docx
-
-                detail_data = (session.api(
-                    "/HospitalProcurement/hospitalPurchaseRequest/requirement-editing-detail"
-                    f"?purchaseRequestId={record['uuid']}"
-                ).json() or {}).get("data") or {}
-                raw = download_file(document["fileId"])
-                filled = fill_requirement_document(
-                    raw,
-                    detail_data.get("purchaseRequest") or record,
-                    detail_data.get("subpackages") or [],
-                )
-                user_id = get_user_info(session).get("userId")
-                new_file_id = upload_docx(filled, document.get("fileName") or "采购需求书.docx", user_id)
-                update_purchase_document(session, document["documentKey"], new_file_id)
-                print("[S15] 需求书正文已按项目数据填充")
-            except Exception as exc:  # noqa: BLE001 - 内容填充失败不阻断主链
-                print(f"[S15] 内容填充跳过：{exc}")
 
         saved = confirm_save(session, document_uuid)
         assert_true(saved.get("documentStatus") == "SAVED", f"需求书保存失败：{saved}")

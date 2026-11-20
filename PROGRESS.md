@@ -80,12 +80,7 @@
 - 环境切换：`HP_ENV=local/online` + `HP_BASE_URL`；账号分组、cookie/redirect 适配、线上只读冒烟`online_smoke.py`。
 - 供应商账号修正：线上/本地统一使用 `ybjcsgys1~3`。
 - S16 线上编辑器保存路径本地验证：`HP_AUDIT_SAVE_MODE=editor` 下 P3 全链通过（302.90s）。
-- **S15/S16 内容填充（新增）**：
-  - `core/office_files.py`（文件下载/上传 + OnlyOffice 回调更新文档）
-  - `core/doc_content.py`（需求书按项目/子包/预算填充；审计报告按审计明细填充）
-  - 开关 `HP_CONTENT_FILL=1`（仅本地/测试环境）
-  - 本地 P2 验证：284.49s，status=20；抽查文档确认项目名/概况/预算表/审计明细已写入（需求书 documentVersion=2、审计报告 reportVersion=2）
-  - 单测 +2（`tests/unit/test_doc_content.py`），默认回归 43 passed / 4 skipped
+- S15/S16 曾做过 OnlyOffice 正文填充，已按人工操作口径删除。模板生成的正文保持原样。
 
 ## 采购方式可选择（本地增强）
 
@@ -99,13 +94,9 @@
 - 新增单测 `tests/unit/test_procurement_method.py`。
 - 本地计划耗尽时用 `scripts/seed_local_plan.py` 克隆种子计划；默认回归 50 passed / 4 skipped。
 
-## 本地取证与内容填充（2026-11-20）
+## 本地取证（2026-11-20）
 
 - 步骤截图：全链每步开始/结束/失败截图，写入 `reports/<runId>/screenshots/`，HTML 报告可点开。
-- 需求书：按真实模板表头填写包号、名称、预算金额、项目属性；工程类模板替换 `{{项目名称}}`、`{{采购单位}}`。
-- 审计报告：明细按真实预算计划填写。合计、落款、固定说明段落保持模板原文。
-- 约定：人工走前置流程时不在 OnlyOffice 里改正文，自动化默认也不填。
-  模板说明、示例技术参数、配置清单、预算表、审计明细都保持模板生成结果。
-  `HP_CONTENT_FILL=1` 只是已有的可选开关，不再继续补。
-- 验证：`HP_CONTENT_FILL=1` 的 P3 全链 PASSED，313.77s，`FW-YWB-CG20260149` status=9；需求书 documentVersion=2，审计报告 reportVersion=2。
-- 默认回归：51 passed / 4 skipped。提交：`fa18499`、`4f5a95d`、`1987eda`、`51113a6`。
+- OnlyOffice 正文不填：人工走前置流程时不在编辑器里改正文，自动化已删除对应填充代码。
+  需求书和审计报告保持模板生成结果；审计报告仍按原流程标记已保存。
+- 默认回归基线在删除前为 51 passed / 4 skipped。提交：`fa18499`。
