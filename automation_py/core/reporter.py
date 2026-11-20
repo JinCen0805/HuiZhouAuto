@@ -4,6 +4,7 @@ from __future__ import annotations
 import html
 import json
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -37,14 +38,33 @@ class Reporter:
         self.started_at = datetime.now().isoformat(timespec="seconds")
 
     def stage(self, stage_id: str, name: str, status: str,
-              duration_ms: int | None = None, **extra) -> None:
+              duration_ms: int | None = None, screenshots: list[str] | None = None,
+              **extra) -> None:
         self.stages.append({
             "id": stage_id,
             "name": name,
             "status": status,
             "durationMs": duration_ms,
+            "screenshots": screenshots or [],
             **extra,
         })
+
+    def shot(self, page, name: str, reason: str) -> str | None:
+        """对当前页面截图，落盘到 $run_dir/screenshots/，返回相对文件名（失败返回 None）。
+
+        page：Playwright Page（可为 None）；name/reason 参与文件名，便于排查。
+        截图只取当前视口（含已打开的 iframe），不做滚动，避免耗时与遮挡问题。
+        """
+        if page is None:
+            return None
+        try:
+            safe = f"{safe_filename(name)}_{safe_filename(reason)}_{int(time.time()*1000)%100000}"
+            path = self.shots_dir / f"{safe}.png"
+            page.screenshot(path=str(path), full_page=False, timeout=10000)
+            return str(path.name)
+        except Exception as exc:  # noqa: BLE001 - 截图失败不阻断主流程
+            print(f"[REPORT] 截图失败({name}/{reason})：{exc}")
+            return None
 
     def finish(self, status: str = "success") -> Path:
         payload = {
@@ -77,6 +97,16 @@ class Reporter:
             attrs = ""
             for key, value in (stage.get("error") and {"title": stage["error"]} or {}).items():
                 attrs = f' {key}="{html.escape(str(value))}"'
+            shots = stage.get("screenshots") or []
+            shots_html = ""
+            if shots:
+                thumbnails = "".join(
+                    f'<a href="screenshots/{html.escape(f)}" data-lightbox="g-{html.escape(str(stage.get("id")))}">'
+                    f'<img class="shot" src="screenshots/{html.escape(f)}" loading="lazy" '
+                    f'onerror="this.style.display=\'none\'" alt="{html.escape(f)}"/></a>'
+                    for f in shots
+                )
+                shots_html = f'<div class="shots">{thumbnails}</div>'
             rows.append(
                 "<tr>"
                 f"<td>{html.escape(str(stage.get('id')))}</td>"
@@ -84,6 +114,7 @@ class Reporter:
                 f"<td class='{stage.get('status')}'>{html.escape(str(label))}</td>"
                 f"<td>{duration/1000:.1f}s</td>"
                 f"<td{attrs}>{extra}</td>"
+                f"<td>{shots_html}</td>"
                 "</tr>"
             )
         doc = f"""<!DOCTYPE html>
@@ -99,6 +130,10 @@ th{{background:#f5f7fa}}
 .failed{{color:#c62828;font-weight:600}}
 .retrying{{color:#b26a00;font-weight:600}}
 .summary{{margin-top:12px;font-size:14px}}
+.shots{{display:flex;flex-wrap:wrap;gap:6px;max-width:420px}}
+img.shot{{width:120px;height:auto;border:1px solid #ddd;border-radius:4px;cursor:zoom-in;background:#fafafa}}
+.lightbox{{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99;align-items:center;justify-content:center}}
+.lightbox img{{max-width:92vw;max-height:92vh;box-shadow:0 4px 24px rgba(0,0,0,.5)}}
 </style></head><body>
 <h1>采购前置全链运行报告</h1>
 <div class="summary">
@@ -107,10 +142,28 @@ th{{background:#f5f7fa}}
 <b>开始：</b>{html.escape(payload['startAt'])}　<b>结束：</b>{html.escape(payload['endAt'])}<br/>
 <b>总耗时：</b>{total_ms/1000:.1f}s
 </div>
-<table><thead><tr><th>步骤</th><th>名称</th><th>结果</th><th>耗时</th><th>备注</th></tr></thead>
+<div class="lightbox" id="lightbox" onclick="this.style.display='none'"><img id="lightboxImg" src="" alt=""/></div>
+<table><thead><tr><th>步骤</th><th>名称</th><th>结果</th><th>耗时</th><th>备注</th><th>截图</th></tr></thead>
 <tbody>{''.join(rows)}</tbody></table>
-</body></html>"""
+""" + _LIGHTBOX_JS
         path.write_text(doc, encoding="utf-8")
+
+
+# 灯箱脚本：含 JS 花括号，不能放进 f-string，单独常量再拼接。
+_LIGHTBOX_JS = """
+<script>
+document.querySelectorAll('img.shot').forEach(function(im){
+  im.addEventListener('click', function(e){
+    e.stopPropagation();
+    document.getElementById('lightboxImg').src = im.closest('a').href;
+    document.getElementById('lightbox').style.display = 'flex';
+  });
+});
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){ document.getElementById('lightbox').style.display='none'; }
+});
+</script>
+</body></html>"""
 
 
 def safe_filename(text: str) -> str:

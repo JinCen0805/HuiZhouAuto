@@ -107,3 +107,36 @@ def test_reporter_writes_html(tmp_path):
     assert "采购前置全链运行报告" in html
     assert "boom" in html
     assert "失败" in html
+
+
+def test_reporter_shot_and_html_thumbnail(tmp_path):
+    """截图取证：shot() 落盘 PNG，HTML 报告出现缩略图列链接，失败页面安全跳过。"""
+    class _FakePage:
+        def __init__(self):
+            self.captured = []
+
+        def screenshot(self, path, full_page=False, timeout=10000):
+            Path(path).write_bytes(b"\x89PNG-fake")
+            self.captured.append(path)
+
+    reporter = Reporter("UI自动化-shot")
+    reporter.run_dir = tmp_path / "run"
+    reporter.shots_dir = reporter.run_dir / "screenshots"
+    reporter.shots_dir.mkdir(parents=True, exist_ok=True)
+
+    page = _FakePage()
+    fname = reporter.shot(page, "S01_applicant", "end")
+    assert fname and fname.endswith(".png")
+    assert (reporter.shots_dir / fname).exists()
+    # None / 不支持截图的对象应安全返回 None
+    assert reporter.shot(None, "x", "end") is None
+
+    reporter.stage("S01", "创建申请", "success", 1200, screenshots=[fname])
+    path = reporter.finish("success")
+    html = path.with_suffix(".html").read_text(encoding="utf-8")
+    assert f"screenshots/{fname}" in html
+    assert 'class="shot"' in html
+    assert "<th>截图</th>" in html
+    # JSON 也带截图清单
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    assert payload["stages"][0]["screenshots"] == [fname]
