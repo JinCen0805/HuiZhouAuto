@@ -28,6 +28,7 @@ class PackageManagementPage:
         return browser_helpers.get_frame(self.page, EDITOR_URL_PATTERN)
 
     def add_subpackage(self, editor_frame, subpackage_name: str) -> None:
+        """新增子包。名称由调用方按“申请单名称-子包1/2/3”传入。"""
         add_button = editor_frame.locator("button[data-action='addPackage']").first
         add_button.wait_for(state="visible", timeout=15000)
         add_button.click()

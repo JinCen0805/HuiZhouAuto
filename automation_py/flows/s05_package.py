@@ -17,7 +17,7 @@ def s05_package(session, ctx: dict) -> dict:
     page.search(ctx["project_name"])
 
     editor = page.open_editor(ctx["request_code"])
-    subpackage_name = f"{ctx['run_id']}-子包01"
+    subpackage_name = f"{ctx['project_name']}-子包1"
     page.add_subpackage(editor, subpackage_name)
     wait_until(
         lambda: page.editor_contains(editor, subpackage_name),

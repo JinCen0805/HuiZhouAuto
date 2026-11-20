@@ -54,8 +54,10 @@ def s20_execution(applicant_session, director_session, dept_leader_session,
     task = wait_until(lambda: _bt13_task(procurement_director_session, project_uuid),
                       timeout_s=30, message="未找到 BT13 采购办主任待办")
     contacts = exec_api.contact_list()
-    assert_true(bool(contacts), "采购执行经办人候选为空")
-    handler = contacts[0]
+    handler = next((item for item in contacts
+                    if item.get("contactName") == "采购办经办人"), None)
+    assert_true(handler is not None,
+                f"未找到采购办经办人；候选：{[item.get('contactName') for item in contacts]}")
     approval = ApprovalApi(procurement_director_session)
     data = {
         "taskId": task["id"],
