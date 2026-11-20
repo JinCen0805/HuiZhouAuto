@@ -45,6 +45,7 @@ def test_fill_requirement_document():
 
 def test_fill_audit_report_table():
     doc = Document()
+    doc.add_paragraph("×年×月×日")
     table = doc.add_table(rows=4, cols=16)
     table.rows[0].cells[0].text = "申购项目（货物）审计意见"
     table.rows[1].cells[0].text = ""
@@ -68,11 +69,20 @@ def test_fill_audit_report_table():
     filled = fill_audit_report(_doc_bytes(doc), detail)
     result = Document(io.BytesIO(filled))
     rows = result.tables[0].rows
-    assert len(rows) == 4  # 标题、空行、表头、1 条数据
+    assert len(rows) == 5  # 标题、空行、表头、1 条数据、1 条合计
     data = rows[3]
     assert data.cells[0].text == "1"
     assert data.cells[1].text == "测试货物"
     assert data.cells[9].text == "2"
     assert data.cells[10].text == "2000"
+    assert data.cells[11].text == "1000"  # 建议参考单价=单位价
     assert data.cells[13].text == "医务部"
     assert data.cells[14].text == "同意"
+    # 合计行：数量 2 / 报审金额 2000 / 建议参考金额 1000
+    total = rows[4]
+    assert total.cells[0].text == "合计"
+    assert total.cells[9].text == "2"
+    assert total.cells[10].text == "2000"
+    assert total.cells[12].text == "1000"
+    # 落款日期已按关键字填当天
+    assert any("20" in (p.text or "") and "年" in (p.text or "") for p in result.paragraphs)
