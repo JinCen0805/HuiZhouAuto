@@ -35,6 +35,7 @@ ROLE_SPECS = _env_accounts()
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="采购前置全链编排")
     parser.add_argument("--run-id", default="", help="运行标记；默认 UI自动化-时间戳")
+    parser.add_argument("--project-name", default="", help="采购项目名称；默认 runId-全链")
     parser.add_argument("--from", dest="start_from", default="S01",
                         help="起始步骤（S01/S04/.../S20）")
     parser.add_argument("--resume", action="store_true",
@@ -95,7 +96,7 @@ def main() -> int:
             department_id = info["organizationId"]
             ctx = {
                 "run_id": run_id,
-                "project_name": f"{run_id}-全链",
+                "project_name": args.project_name or f"{run_id}-全链",
                 "department_id": department_id,
                 "survey_end_minutes": 1.5,
             }
