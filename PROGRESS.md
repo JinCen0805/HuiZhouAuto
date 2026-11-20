@@ -98,3 +98,12 @@
   1 委托采购（293.05s）均 status=9。
 - 新增单测 `tests/unit/test_procurement_method.py`。
 - 本地计划耗尽时用 `scripts/seed_local_plan.py` 克隆种子计划；默认回归 50 passed / 4 skipped。
+
+## 本地取证与内容填充（2026-11-20）
+
+- 步骤截图：全链每步开始/结束/失败截图，写入 `reports/<runId>/screenshots/`，HTML 报告可点开。
+- 需求书：按真实模板表头填写包号、名称、预算金额、项目属性；工程类模板替换 `{{项目名称}}`、`{{采购单位}}`。
+- 审计报告：明细按真实预算计划填写。合计、落款、固定说明段落保持模板原文。
+- 约定：前置流程的模板说明、示例技术参数、配置清单不改成项目数据，沿用模板即可。
+- 验证：`HP_CONTENT_FILL=1` 的 P3 全链 PASSED，313.77s，`FW-YWB-CG20260149` status=9；需求书 documentVersion=2，审计报告 reportVersion=2。
+- 默认回归：51 passed / 4 skipped。提交：`fa18499`、`4f5a95d`、`1987eda`、`51113a6`。
