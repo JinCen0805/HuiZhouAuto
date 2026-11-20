@@ -16,31 +16,67 @@ def _doc_bytes(doc: Document) -> bytes:
 
 def test_fill_requirement_document():
     doc = Document()
-    doc.add_paragraph("采购项目名称：模板示例")
+    doc.add_paragraph("名称：{{项目名称}}")
+    doc.add_paragraph("采购单位：{{采购单位}}")
     doc.add_paragraph("三、项目概况：模板示例")
-    table = doc.add_table(rows=2, cols=9)
+    table = doc.add_table(rows=2, cols=8)
     for cell, value in zip(table.rows[0].cells,
-                           ["包号", "名称", "单位", "数量", "预算单价（元）", "预算金额（元）",
-                            "采购周期", "是否允许进口", "是否专门面向中小微企业"]):
+                           ["包号", "名称", "数量", "单位", "预算单价（元）", "预算金额（元）",
+                            "项目属性", "备注"]):
         cell.text = value
+    # 模板示例数据行：数量/单位/单价保留，只有已确认字段被覆盖
     for cell, value in zip(table.rows[1].cells,
-                           ["包1", "心电监护仪", "台", "1", "8000", "8000", "壹年", "否", "否"]):
+                           ["包1", "心电监护仪", "1", "台", "8000", "8000", "货物类", ""]):
         cell.text = value
 
     filled = fill_requirement_document(
         _doc_bytes(doc),
         {"requestName": "UI自动化-测试项目", "purchaseContent": "采购内容说明",
-         "applicationReason": "申请理由说明"},
+         "applicationReason": "申请理由说明", "requestDeptNameSnapshot": "医务部",
+         "totalBudgetAmount": 660000},
         [{"subpackageCode": "FW-YWB-CG20260100-01",
-          "subpackageName": "UI自动化-测试项目-子包01", "budgetAmount": 660000}],
+          "subpackageName": "UI自动化-测试项目-子包01", "budgetAmount": 660000,
+          "reserveProjects": [{"reserveProjectName": "心电监护仪", "projectType": "货物类",
+                               "budgetAmount": 660000}]}],
     )
     result = Document(io.BytesIO(filled))
     text = "\n".join(p.text for p in result.paragraphs)
+    # 占位符替换
+    assert "{{项目名称}}" not in text
     assert "UI自动化-测试项目" in text
+    assert "医务部" in text
     assert "采购内容说明" in text
-    rows = result.tables[0].rows
-    assert rows[1].cells[0].text == "FW-YWB-CG20260100-01"
-    assert "660000" in rows[1].cells[5].text
+    # 预算表：已确认列被覆盖，未确认列（数量/单位/单价）保留模板默认
+    row = result.tables[0].rows[1]
+    cols = {c.text: c for c in result.tables[0].rows[0].cells}
+    idx_name = list(cols).index("名称")
+    assert row.cells[0].text == "FW-YWB-CG20260100-01"  # 包号
+    assert "子包01" in row.cells[idx_name].text  # 名称
+    assert row.cells[5].text == "660000"  # 预算金额
+    assert row.cells[6].text == "货物类"  # 项目属性
+    assert row.cells[2].text == "1"  # 数量（模板默认保留）
+
+
+def test_fill_requirement_engineering_no_table():
+    """工程类模板：无预算表、有 {{占位符}}，应替换占位符且不报错。"""
+    doc = Document()
+    doc.add_paragraph("采购项目内容")
+    doc.add_paragraph("名称：{{项目名称}}")
+    doc.add_paragraph("采购单位：{{采购单位}}")
+    filled = fill_requirement_document(
+        _doc_bytes(doc),
+        {"requestName": "UI自动化-工程项目", "requestDeptNameSnapshot": "总务处",
+         "totalBudgetAmount": 675000},
+        [{"subpackageCode": "GC-01", "subpackageName": "修缮工程",
+          "budgetAmount": 675000,
+          "reserveProjects": [{"reserveProjectName": "医务部-工程", "projectType": "工程类",
+                               "budgetAmount": 675000}]}],
+    )
+    result = Document(io.BytesIO(filled))
+    text = "\n".join(p.text for p in result.paragraphs)
+    assert "{{项目名称}}" not in text and "{{采购单位}}" not in text
+    assert "UI自动化-工程项目" in text
+    assert "总务处" in text
 
 
 def test_fill_audit_report_table():

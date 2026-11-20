@@ -21,9 +21,10 @@ def _replace_paragraph(doc: Document, prefix: str, new_text: str) -> bool:
 
 
 def _fill_table_rows(table, rows: list[list[str]], header_index: int = 0) -> None:
-    """清空表头行之后的数据行，再按 rows 填充。"""
+    """清空表头行之后的数据行，再按 rows 填充（审计明细表用）。"""
     if len(table.rows) <= header_index:
         return
+    # 保留表头及其上（标题/合并行），删除表头之后的数据行
     for row in list(table.rows)[header_index + 1:]:
         table._tbl.remove(row._tr)
     for values in rows:
@@ -32,33 +33,125 @@ def _fill_table_rows(table, rows: list[list[str]], header_index: int = 0) -> Non
             cell.text = str(value)
 
 
+def _replace_placeholders(doc: Document, mapping: dict[str, str]) -> None:
+    """批量替换段落/表格单元格里的 {{占位符}}（工程类/模板变量通用）。"""
+    def _replacer(text: str) -> str:
+        if not text:
+            return text
+
+        def _one(m) -> str:
+            key = m.group(1).strip()
+            return mapping.get(key, m.group(0))
+        return re.sub(r"\{\{\s*([^{}]+?)\s*\}\}", _one, text)
+
+    for para in doc.paragraphs:
+        para.text = _replacer(para.text)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                cell.text = _replacer(cell.text)
+
+
+def _fill_prose_fields(doc: Document, mapping: dict[str, str]) -> None:
+    """按行首关键字填充条款式字段（名称/采购单位/总金额），value 空则跳过。"""
+    for para in doc.paragraphs:
+        text = (para.text or "").strip()
+        if not text:
+            continue
+        for prefix, key in (("名称：", "名称"), ("采购单位：", "采购单位"),
+                            ("总金额（元）:", "总金额"), ("总金额（元）：", "总金额"),
+                            ("预算金额（元）:", "总金额"), ("预算金额（元）：", "总金额")):
+            if text.startswith(prefix) and mapping.get(key):
+                para.text = prefix + str(mapping[key])
+                break
+
+
+def _header_columns(header_row_cells) -> list[str]:
+    return [c.text.strip() for c in header_row_cells]
+
+
+def _find_budget_table(doc: Document) -> tuple | None:
+    """按关键字定位预算表（表头含“预算金额”，且带“预算单价/单价”或“包号/名称”）。"""
+    for table in doc.tables:
+        for index, row in enumerate(table.rows[:3]):
+            text = "|".join(c.text for c in row.cells)
+            if "预算金额" in text and ("预算单价" in text or "包号" in text or "分项预算" in text):
+                return table, index
+    return None
+
+
+def _fill_budget_table(doc: Document, subpackages: list[dict]) -> None:
+    """表头驱动填充预算表：目标表头含“预算金额”关键字。
+
+    只覆盖已确认字段（包号/名称/预算金额/项目属性），数量/单位/单价无真实数据时
+    保留模板默认值，避免制造虚假采购量。支持货物/服务/工程等多模板表头差异。
+    """
+    found = _find_budget_table(doc)
+    if not found:
+        return
+    table, header_index = found
+    headers = _header_columns(table.rows[header_index].cells)
+
+    col_by_keyword: dict[str, int] = {}
+    for i, h in enumerate(headers):
+        if "包号" in h:
+            col_by_keyword["包号"] = i
+        elif "名称" in h or "标的" in h or "品目名" in h:
+            col_by_keyword.setdefault("名称", i)
+        elif "预算金额" in h or "分项预算总价" in h or ("总价" in h and "预算" in h):
+            col_by_keyword.setdefault("预算金额", i)
+        elif "项目属性" in h or "所属行业" in h:
+            col_by_keyword.setdefault("项目属性", i)
+
+    rows = list(table.rows[header_index + 1:])
+    for sub_index, sub in enumerate(subpackages or []):
+        rp_list = sub.get("reserveProjects") or []
+        first_rp = rp_list[0] if rp_list else {}
+        amount = sub.get("budgetAmount")
+        if amount in (None, "") and first_rp:
+            amount = first_rp.get("budgetAmount")
+        values = {
+            "包号": sub.get("subpackageCode") or f"包{sub_index + 1}",
+            "名称": sub.get("subpackageName") or first_rp.get("reserveProjectName") or "",
+            "预算金额": _num(amount),
+            "项目属性": first_rp.get("projectType") or sub.get("projectType") or "",
+        }
+        row = rows[sub_index] if sub_index < len(rows) else rows[-1]
+        for key, col in col_by_keyword.items():
+            cell = row.cells[col]
+            if values.get(key):
+                cell.text = str(values[key])
+
+
 def fill_requirement_document(docx_bytes: bytes, request: dict,
                               subpackages: list[dict]) -> bytes:
-    """填充采购需求书：项目名称/概况/采购预算表。"""
+    """填充采购需求书（模板无关）：占位符 + 条款字段 + 预算表。
+
+    覆盖 4 类模板：议价/工程（无表+占位符）、政采货物/服务（多表，预算表按关键字定位）。
+    """
     doc = Document(io.BytesIO(docx_bytes))
     request_name = str(request.get("requestName") or "").strip()
+    dept = str(request.get("requestDeptNameSnapshot")
+               or request.get("organizationName") or "").strip()
     content = str(request.get("purchaseContent") or "").strip()
     reason = str(request.get("applicationReason") or "").strip()
 
-    if request_name:
-        _replace_paragraph(doc, "采购项目名称", f"采购项目名称：{request_name}")
+    mapping = {
+        "项目名称": request_name or "",
+        "采购单位": dept or "",
+        "总金额": _num(request.get("totalBudgetAmount")),
+        "采购预算": _num(sum(float(x or 0) for x in [request.get("totalBudgetAmount")])),
+    }
+    _replace_placeholders(doc, mapping)
+    _fill_prose_fields(doc, mapping | {"名称": request_name or "", "采购单位": dept or "",
+                                        "总金额": _num(request.get("totalBudgetAmount"))})
+
     overview = "三、项目概况：" + " ".join(x for x in (content, reason) if x)
     _replace_paragraph(doc, "三、项目概况", overview)
+    if request_name:
+        _replace_paragraph(doc, "采购项目名称", f"采购项目名称：{request_name}")
 
-    rows: list[list[str]] = []
-    for index, sub in enumerate(subpackages or [], start=1):
-        code = str(sub.get("subpackageCode") or f"包{index}")
-        name = str(sub.get("subpackageName") or "")
-        amount = sub.get("budgetAmount")
-        try:
-            amount_text = f"{float(amount):.2f}" if amount not in (None, "") else ""
-        except Exception:
-            amount_text = str(amount or "")
-        rows.append([code, name, "批", "1", amount_text, amount_text, "按合同", "否", "否"])
-
-    if rows and doc.tables:
-        _fill_table_rows(doc.tables[0], rows)
-
+    _fill_budget_table(doc, subpackages or [])
     buffer = io.BytesIO()
     doc.save(buffer)
     return buffer.getvalue()
