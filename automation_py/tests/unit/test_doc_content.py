@@ -122,3 +122,44 @@ def test_fill_audit_report_table():
     assert total.cells[12].text == "1000"
     # 落款日期已按关键字填当天
     assert any("20" in (p.text or "") and "年" in (p.text or "") for p in result.paragraphs)
+
+
+def test_fill_requirement_tech_table():
+    """B1：技术参数/技术指标表用真实预留项目名称+说明填充，不编造参数。"""
+    doc = Document()
+    doc.add_paragraph("名称：{{项目名称}}")
+    budget = doc.add_table(rows=2, cols=8)
+    for cell, value in zip(budget.rows[0].cells,
+                           ["包号", "名称", "数量", "单位", "预算单价（元）", "预算金额（元）",
+                            "项目属性", "备注"]):
+        cell.text = value
+    tech = doc.add_table(rows=4, cols=3)
+    for cell, value in zip(tech.rows[0].cells, ["产品技术参数", "产品技术参数", "产品技术参数"]):
+        cell.text = value
+    for cell, value in zip(tech.rows[1].cells, ["序号", "名称", "技术指标/服务要求描述"]):
+        cell.text = value
+    for cell, value in zip(tech.rows[2].cells, ["1", "", ""]):
+        cell.text = value
+    for cell, value in zip(tech.rows[3].cells, ["2", "", ""]):
+        cell.text = value
+
+    filled = fill_requirement_document(
+        _doc_bytes(doc),
+        {"requestName": "UI自动化-技术参数项目", "requestDeptNameSnapshot": "医务部",
+         "totalBudgetAmount": 200000},
+        [{"subpackageCode": "FW-01", "subpackageName": "宣传视频制作", "budgetAmount": 200000,
+          "reserveProjects": [
+              {"reserveProjectName": "医院宣传视频", "projectType": "服务类",
+               "preparationBasis": "重点专科需向患者说明服务范围，现有内容过期",
+               "quantity": 2, "unit": "条"},
+              {"reserveProjectName": "第二项服务", "projectType": "服务类",
+               "preparationBasis": "用于覆盖新增服务场景。"},
+          ]}],
+    )
+    result = Document(io.BytesIO(filled))
+    tech_tb = result.tables[1]
+    # 表头 r0=标题(合并)、r1=表头、r2/r3=数据行
+    assert tech_tb.rows[2].cells[1].text == "医院宣传视频"  # 名称列
+    assert "重点专科需向患者说明" in tech_tb.rows[2].cells[2].text  # 描述列
+    assert tech_tb.rows[3].cells[1].text == "第二项服务"
+    assert "新增服务场景" in tech_tb.rows[3].cells[2].text

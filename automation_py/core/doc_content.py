@@ -123,6 +123,62 @@ def _fill_budget_table(doc: Document, subpackages: list[dict]) -> None:
                 cell.text = str(values[key])
 
 
+def _iter_item_rows(subpackages: list[dict]) -> list[dict]:
+    """展开子包下的预留项目（技术参数/配置清单填充的数据源）。"""
+    items: list[dict] = []
+    for sub in subpackages or []:
+        for rp in sub.get("reserveProjects") or []:
+            items.append({
+                "name": rp.get("reserveProjectName") or "",
+                "desc": rp.get("preparationBasis") or rp.get("spec") or rp.get("remark") or "",
+                "unit": rp.get("unit") or "",
+                "quantity": _num(rp.get("quantity"), int_digits=True),
+            })
+    return items
+
+
+def _fill_tech_table(doc: Document, subpackages: list[dict]) -> None:
+    """填充技术参数/技术指标表：表头含“技术指标/技术参数/技术要求”。
+
+    名称列填预留项目名；描述列填该项目的 preparationBasis 真实说明（无则留空）。
+    序号列保留模板序号。数据不足时其余行留空，不编造技术参数。
+    """
+    items = _iter_item_rows(subpackages)
+    if not items:
+        return
+    for table in doc.tables:
+        is_tech = any(
+            "技术指标" in "|".join(c.text for c in row.cells) or "技术参数" in "|".join(c.text for c in row.cells)
+            or "技术要求" in "|".join(c.text for c in row.cells)
+            for row in table.rows[:3]
+        )
+        if not is_tech:
+            continue
+        # 在同一表内再找含“名称”的表头行（R0 可能是合并标题“产品技术参数”）
+        hdr_index = None
+        headers: list[str] = []
+        for index, row in enumerate(table.rows[:3]):
+            cells = [c.text.strip() for c in row.cells]
+            if "名称" in "|".join(cells):
+                hdr_index = index
+                headers = cells
+                break
+        if hdr_index is None:
+            return  # 无名称列，无法安全填充
+        name_col = next((i for i, h in enumerate(headers) if "名称" in h), None)
+        desc_col = next((i for i, h in enumerate(headers)
+                         if ("描述" in h or "要求" in h or "参数" in h)
+                         and i != name_col), None)
+        data_start = hdr_index + 1
+        for offset, item in enumerate(items[: max(0, len(table.rows) - data_start)]):
+            cells = table.rows[data_start + offset].cells
+            if len(cells) > name_col:
+                cells[name_col].text = item["name"]
+            if desc_col is not None and len(cells) > desc_col and item["desc"]:
+                cells[desc_col].text = item["desc"]
+        return
+
+
 def fill_requirement_document(docx_bytes: bytes, request: dict,
                               subpackages: list[dict]) -> bytes:
     """填充采购需求书（模板无关）：占位符 + 条款字段 + 预算表。
@@ -152,6 +208,7 @@ def fill_requirement_document(docx_bytes: bytes, request: dict,
         _replace_paragraph(doc, "采购项目名称", f"采购项目名称：{request_name}")
 
     _fill_budget_table(doc, subpackages or [])
+    _fill_tech_table(doc, subpackages or [])
     buffer = io.BytesIO()
     doc.save(buffer)
     return buffer.getvalue()
