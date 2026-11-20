@@ -9,6 +9,14 @@ from core.assert_helper import assert_true
 from flows.common import wait_until
 
 
+def _execution_left_auditing(exec_api: ExecutionApi, project_uuid: str):
+    """审批通过后执行项目会短暂停在 A4，必须等同步任务把它推离审批中。"""
+    detail = exec_api.detail(project_uuid)
+    execution = detail.get("execution") or {}
+    state = str(execution.get("state") or "")
+    return execution if state and state != "A4" else None
+
+
 def _bt13_task(session, project_uuid: str):
     api = ApprovalApi(session)
     return next(
@@ -86,10 +94,14 @@ def s20_execution(applicant_session, director_session, dept_leader_session,
         timeout_s=60,
         message="BT13 通过后申请单未进入 9 采购中",
     )
-    print(f"[S20] 采购执行审批通过，申请单 status={status.get('status')}（采购中）OK")
+    print(f"[S20] 采购执行审批通过，申请单 status={status.get('status')}（采购中）")
 
-    detail = exec_api.detail(project_uuid)
-    execution = detail.get("execution") or {}
+    execution = wait_until(
+        lambda: _execution_left_auditing(exec_api, project_uuid),
+        timeout_s=90,
+        message="采购申请已到采购中，但执行项目仍停在审批中",
+    )
+    print(f"[S20] 执行项目已离开审批中，state={execution.get('state')} OK")
     ctx["execution_project_uuid"] = project_uuid
     ctx["execution_state"] = execution.get("state")
     ctx["procurement_started"] = True
