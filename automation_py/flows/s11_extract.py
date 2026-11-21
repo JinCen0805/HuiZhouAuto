@@ -19,7 +19,14 @@ def s11_extract(session, ctx: dict) -> dict:
     """规划抽取（线下/手动）→ 勾选 3 名专家 → mock 电话确认 → extractStatus=2。"""
     api = ArgumentApi(session)
     mock = ProfessorMockApi(session)
-    survey_uuid = ctx["survey_project_uuid"]
+    survey_uuid = ctx.get("survey_project_uuid")
+    if not survey_uuid:
+        from api.survey_api import SurveyApi
+
+        project = SurveyApi(session).find_project(ctx["project_name"])
+        assert_true(project is not None, f"未找到调研项目：{ctx['project_name']}")
+        survey_uuid = project["uuid"]
+        ctx["survey_project_uuid"] = survey_uuid
 
     majors = api.list_majors()
     usable = [m for m in majors if int(m.get("expertCount") or 0) >= 3]

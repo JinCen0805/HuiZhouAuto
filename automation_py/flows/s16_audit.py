@@ -42,7 +42,7 @@ def s16_audit(hp_session, auditor_session, director_session, ctx: dict) -> dict:
             print(f"[S16] Redis key 同步跳过：{exc}")
 
     current = get_purchase_request(hp_session, ctx["request_code"], ctx["department_id"])
-    if current and int(current.get("status") or 0) >= 20:
+    if current and int(current.get("status") or 0) in (19, 18, 10, 11, 9):
         print(f"[S16] 当前状态 {current.get('status')}，审计已完成，跳过")
         ctx["audit_passed"] = True
         return ctx

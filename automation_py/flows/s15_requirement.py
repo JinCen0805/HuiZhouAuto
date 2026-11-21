@@ -30,8 +30,8 @@ def s15_requirement(session, director_session, ctx: dict) -> dict:
     record = get_purchase_request(session, ctx["request_code"], ctx["department_id"])
     assert_true(record is not None, f"申请单不存在：{ctx['request_code']}")
     status = int(record.get("status") or 0)
-    if status >= 17:
-        print(f"[S15] 当前状态 {status}，已过编制阶段，跳过")
+    if status not in (15, 16):
+        print(f"[S15] 当前状态 {status}，编制阶段无需处理，跳过")
         return ctx
     assert_true(status in (15, 16), f"S15 前置状态应为 15/16，实际 {status}")
     government = str(record.get("governmentProcurement")) in ("是", "1", "true", "True")
@@ -74,13 +74,13 @@ def s15_requirement(session, director_session, ctx: dict) -> dict:
         message="未找到 BT14 编制文件审批待办",
     )
     api.complete(task["id"], "1", "自动化测试-编制文件审批通过")
-    wait_until(
-        lambda: (lambda r: r if r and int(r.get("status") or 0) == 17 else None)(
+    approved = wait_until(
+        lambda: (lambda r: r if r and int(r.get("status") or 0) in (17, 19, 18, 10) else None)(
             get_purchase_request(session, ctx["request_code"], ctx["department_id"])
         ),
         timeout_s=30,
-        message="主任审批通过后状态未进入 17 待审计",
+        message="主任审批通过后状态未进入待审计或待审查",
     )
-    print("[S15] 主任审批通过，status=17 待审计 OK")
+    print(f"[S15] 主任审批通过，status={approved.get('status')} OK")
     ctx["requirement_doc_uuid"] = document_uuid
     return ctx

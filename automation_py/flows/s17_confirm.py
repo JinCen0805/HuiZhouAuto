@@ -12,7 +12,7 @@ def s17_final_confirmation(session, director_session, ctx: dict) -> dict:
     record = get_purchase_request(session, ctx["request_code"], ctx["department_id"])
     status = int(record.get("status") or 0)
     if status in (19, 18, 10, 11, 9):
-        print(f"[S17] 当前状态 {status}，终稿确认已完成，跳过")
+        print(f"[S17] 当前状态 {status}，新流程无需二次确认，跳过")
         return ctx
     assert_true(status in (20, 16),
                 f"S17 前置状态应为 20/16，实际 {status}")
