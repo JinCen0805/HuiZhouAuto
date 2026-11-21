@@ -78,7 +78,16 @@ cd D:\Desktop\HuiZhouAuto\automation_py
 $py = "C:\Users\Grayson\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe"
 & $py scripts/run_full_chain.py            # 全新全链（约 4~5 分钟）
 & $py scripts/run_full_chain.py --headed   # 显示浏览器窗口
+
+# 运行前可指定项目名称、采购方式、承办干事和采购执行经办人
+& $py scripts/run_full_chain.py `
+  --project-name "医院电梯年度维护保养服务采购" `
+  --purchase-method 7 --in-hospital-price-type 2 `
+  --applicant cbbm1 `
+  --handler "采购办经办人"
 ```
+
+不传时，采购方式默认比选采购，承办干事默认 `cbbm1`，执行经办人默认「采购办经办人」。
 
 续跑（按申请单当前状态自动定位起始步骤）：
 

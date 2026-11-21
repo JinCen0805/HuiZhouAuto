@@ -36,6 +36,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="采购前置全链编排")
     parser.add_argument("--run-id", default="", help="运行标记；默认 UI自动化-时间戳")
     parser.add_argument("--project-name", default="", help="采购项目名称；默认 runId-全链")
+    parser.add_argument("--applicant", default="", help="承办干事登录账号；默认 cbbm1")
+    parser.add_argument("--handler", default="", help="采购执行经办人姓名或账号；默认 采购办经办人")
     parser.add_argument("--from", dest="start_from", default="S01",
                         help="起始步骤（S01/S04/.../S20）")
     parser.add_argument("--resume", action="store_true",
@@ -83,7 +85,11 @@ def main() -> int:
     try:
         with sync_playwright() as pw:
             browser = browser_helpers.launch(pw, cfg, headless=not args.headed)
-            for key, (username, platform, role) in ROLE_SPECS.items():
+            role_specs = dict(ROLE_SPECS)
+            if args.applicant:
+                username, platform, role = role_specs["applicant"]
+                role_specs["applicant"] = (args.applicant, platform, role)
+            for key, (username, platform, role) in role_specs.items():
                 print(f"[CLI] 登录 {key}: {username}（{platform}/{role}）")
                 session = BrowserSession(
                     browser, cfg, username, platform,
@@ -99,6 +105,7 @@ def main() -> int:
                 "project_name": args.project_name or f"{run_id}-全链",
                 "department_id": department_id,
                 "survey_end_minutes": 1.5,
+                "execution_handler": args.handler or "采购办经办人",
             }
             if args.purchase_method:
                 ctx["purchase_method"] = args.purchase_method
