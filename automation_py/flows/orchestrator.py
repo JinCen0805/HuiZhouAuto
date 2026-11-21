@@ -43,49 +43,6 @@ STATUS_TO_STEP = {
     11: "S20",
 }
 
-# 每步用于截图的主操作用户；默认申请人。S04 用纪检主任，S08 用供应商1。
-PRIMARY_SESSION = {
-    "S04": "supervisor",
-    "S08": "supplier1",
-}
-
-
-def _session_page(session) -> object:
-    """取会话当前浏览器页面；无页面或 HTTP 会话返回 None（截图安全跳过）。"""
-    try:
-        return getattr(session, "page", None)
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def _capture_shots(reporter, sessions: dict, step_id: str, reason: str, all_sessions: bool = False) -> list[str]:
-    """对相关账号当前页面截图取证，返回落盘文件名列表。
-
-    reason：start/end/fail/retry；all_sessions 为 True 时遍历全部账号（失败取证用）。
-    多个会话可能共享同一 Blink 页面，按对象 id 去重避免重复截图。
-    任何会话无页面/截图失败都会被安全跳过，不阻断主链。
-    """
-    keys = list(sessions) if all_sessions else [PRIMARY_SESSION.get(step_id, "applicant")]
-    shot_names: list[str] = []
-    seen: set[int] = set()
-    for key in keys:
-        page = _session_page(sessions.get(key))
-        if not page:
-            continue
-        try:
-            pid = id(page)
-        except Exception:  # noqa: BLE001
-            pid = None
-        if pid is not None and pid in seen:
-            continue
-        seen.add(pid)
-        name = f"{step_id}_{key}"
-        shot = reporter.shot(page, name, reason)
-        if shot:
-            shot_names.append(shot)
-    return shot_names
-
-
 @dataclass
 class Step:
     step_id: str
@@ -202,30 +159,23 @@ def run_chain(sessions: dict, ctx: dict | None = None, run_id: str = "",
         while True:
             attempt += 1
             started = time.time()
-            start_shots = _capture_shots(reporter, sessions, step.step_id, "start")
             try:
                 print(f"\n[ORCH] ▶ {step.step_id} {step.name}（第 {attempt} 次）")
                 step.run(ctx)
                 duration = int((time.time() - started) * 1000)
-                end_shots = start_shots + _capture_shots(reporter, sessions, step.step_id, "end")
-                reporter.stage(step.step_id, step.name, "success", duration,
-                               screenshots=end_shots)
+                reporter.stage(step.step_id, step.name, "success", duration)
                 print(f"[ORCH] ✓ {step.step_id} OK（{duration/1000:.1f}s）")
                 break
             except Exception as exc:  # noqa: BLE001 - 编排层统一记录失败
                 duration = int((time.time() - started) * 1000)
-                fail_shots = start_shots + _capture_shots(
-                    reporter, sessions, step.step_id, "fail", all_sessions=True)
                 if attempt <= retries and step.retryable:
                     reporter.stage(step.step_id, step.name, "retrying", duration,
-                                   error=str(exc)[:500], attempt=attempt,
-                                   screenshots=fail_shots)
+                                   error=str(exc)[:500], attempt=attempt)
                     print(f"[ORCH] ↻ {step.step_id} 失败，重试：{exc}")
                     time.sleep(3)
                     continue
                 reporter.stage(step.step_id, step.name, "failed", duration,
-                               error=str(exc)[:2000], attempt=attempt,
-                               screenshots=fail_shots)
+                               error=str(exc)[:2000], attempt=attempt)
                 error = f"{step.step_id} {step.name}: {exc}"
                 print(f"[ORCH] ✗ {step.step_id} FAILED：{exc}")
                 break
@@ -240,10 +190,8 @@ def run_chain(sessions: dict, ctx: dict | None = None, run_id: str = "",
             error = f"全链结束但申请单状态为 {final_status}，期望 9"
 
     status = "success" if not error else "failed"
-    result_shots = _capture_shots(reporter, sessions, "RESULT", status, all_sessions=True)
     reporter.stage("RESULT", "全链结果", status, final_status=final_status,
-                   requestCode=ctx.get("request_code", ""), error=error,
-                   screenshots=result_shots)
+                   requestCode=ctx.get("request_code", ""), error=error)
     json_path = reporter.finish(status)
     html_path = json_path.with_suffix(".html")
     if error:
