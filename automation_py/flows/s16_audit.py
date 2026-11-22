@@ -117,12 +117,12 @@ def s16_audit(hp_session, auditor_session, director_session, ctx: dict) -> dict:
     print("[S16] 审计部主任已通过，auditStatus=3")
 
     record = wait_until(
-        lambda: (lambda r: r if r and int(r.get("status") or 0) == 20 else None)(
+        lambda: (lambda r: r if r and int(r.get("status") or 0) in (19, 18, 10) else None)(
             get_purchase_request(hp_session, ctx["request_code"], ctx["department_id"])
         ),
         timeout_s=30,
-        message="审计通过后申请单未进入 20 审计通过待二次确认",
+        message="审计通过后申请单未进入待审查与方式分配",
     )
-    print(f"[S16] 申请单状态={record.get('status')}（审计通过待二次确认）OK")
+    print(f"[S16] 申请单状态={record.get('status')}（待审查与方式分配）OK")
     ctx["audit_passed"] = True
     return ctx
