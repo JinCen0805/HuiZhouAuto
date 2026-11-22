@@ -31,7 +31,8 @@ def s11_extract(session, ctx: dict) -> dict:
     majors = api.list_majors()
     usable = [m for m in majors if int(m.get("expertCount") or 0) >= 3]
     assert_true(bool(usable), "专业目录里没有专家数 >=3 的专业")
-    major = next((m for m in usable if m.get("code") == "A01"), usable[0])
+    # 系统要求抽取条件必须带专业，不能传空。优先选人数足够的最上级专业，覆盖其下级专业。
+    major = min(usable, key=lambda item: (len(str(item.get("code") or "")), str(item.get("code") or "")))
     specialty_code = major["code"]
     print(f"[S11] 专业：{major.get('name')}（{specialty_code}），可用专家 {major.get('expertCount')}")
 
