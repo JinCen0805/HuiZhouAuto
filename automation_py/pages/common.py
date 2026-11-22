@@ -31,21 +31,20 @@ def find_row_by_text(frame, text: str, timeout_ms: int = READY_TIMEOUT_MS):
 
 
 def click_row_event(page, frame, row_text: str, event: str) -> None:
-    """点击某行内 `button[lay-event=event]`；兼容固定列复制导致的定位差异。"""
+    """点击某行内 `button[lay-event=event]`；优先点固定列中的可见按钮。"""
+    selector = f"button[lay-event='{event}']"
+    fixed_button = frame.locator(
+        f"{VISIBLE_VIEW} .layui-table-fixed tr", has_text=row_text
+    ).locator(selector)
+    if fixed_button.count() > 0:
+        fixed_button.first.click(force=True)
+        return
     row = find_row_by_text(frame, row_text)
-    button = row.locator(f"button[lay-event='{event}']")
+    button = row.locator(selector)
     if button.count() > 0:
-        button.first.click()
+        button.first.click(force=True)
         return
-    # 兜底：操作列在固定列副本中时，可见区域只有一个匹配按钮
-    all_buttons = frame.locator(f"{VISIBLE_VIEW} button[lay-event='{event}']")
-    if all_buttons.count() == 1:
-        all_buttons.click()
-        return
-    raise LookupError(
-        f"行 {row_text!r} 中未找到按钮 lay-event={event!r}；"
-        f"全局匹配数={all_buttons.count()}"
-    )
+    raise LookupError(f"行 {row_text!r} 中未找到按钮 lay-event={event!r}")
 
 
 def click_button_text(frame, text: str, timeout_ms: int = READY_TIMEOUT_MS) -> None:
