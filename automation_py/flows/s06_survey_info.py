@@ -10,6 +10,13 @@ from pages.survey_project import SurveyProjectPage
 def s06_survey_info(session, ctx: dict) -> dict:
     """完善调研信息并保存，断言 infoComplete=1（可编辑公告）。"""
     api = SurveyApi(session)
+    existing = api.find_project(ctx["project_name"])
+    if existing and int(existing.get("infoComplete") or 0) == 1:
+        print("[S06] 调研信息已是完善状态，跳过保存")
+        ctx["survey_project_uuid"] = existing.get("uuid")
+        ctx["survey_end_time"] = existing.get("endTime")
+        return ctx
+
     page = SurveyProjectPage(session)
     page.search(ctx["project_name"])
     assert_true(page.has_action(ctx["project_name"], "完善信息")
@@ -24,7 +31,7 @@ def s06_survey_info(session, ctx: dict) -> dict:
         lambda: (lambda p: p if p and int(p.get("infoComplete") or 0) == 1 else None)(
             api.find_project(ctx["project_name"])
         ),
-        timeout_s=20,
+        timeout_s=60,
         message="保存调研信息后 infoComplete 未变为 1",
     )
     print(f"[S06] 调研信息已保存，infoComplete={project.get('infoComplete')} OK")

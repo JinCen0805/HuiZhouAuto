@@ -34,6 +34,7 @@ class SurveyProjectPage:
     def __init__(self, session):
         self.session = session
         self.page = session.page
+        browser_helpers.close_all_layers(self.page)
         self.frame = session.open_module(MODULE_URL, "调研项目管理", MENU_ID)
         save_btn = self.frame.locator("#doSearch")
         save_btn.wait_for(state="visible", timeout=20000)
@@ -41,6 +42,7 @@ class SurveyProjectPage:
 
     # ── 列表 ─────────────────────────────────────────────────
     def search(self, project_name: str) -> None:
+        browser_helpers.close_all_layers(self.page)
         field = self.frame.locator("[idname='projectName']")
         field.fill(project_name)
         self.frame.click("#doSearch")
