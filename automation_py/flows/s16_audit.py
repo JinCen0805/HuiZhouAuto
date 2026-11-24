@@ -103,6 +103,27 @@ def _ensure_draft_and_push(hp_session, dept_director_session, audit: dict,
     print(f"[S16] 已推送审计：{pushed.get('auditCode')} → 审计员 {auditor.get('userName')}")
 
 
+def _reserve_amounts(review: dict) -> list[dict]:
+    """按预算计划生成审计数量/单价行；单计划与多计划都适用。"""
+    rows: list[dict] = []
+    for subpackage in review.get("subpackages") or []:
+        for reserve in subpackage.get("reserveProjects") or []:
+            reserve_id = reserve.get("reserveProjectId")
+            if not reserve_id:
+                continue
+            quantity = reserve.get("quantity")
+            unit_price = reserve.get("unitPrice")
+            if quantity is None or unit_price is None:
+                quantity = 1
+                unit_price = reserve.get("budgetAmount") or 0
+            rows.append({
+                "reserveProjectId": reserve_id,
+                "auditQuantity": quantity,
+                "auditUnitPrice": unit_price,
+            })
+    return rows
+
+
 def s16_audit(hp_session, auditor_session, audit_director_session,
               dept_director_session, ctx: dict) -> dict:
     """完成审计推送、报告保存、审理与主任审批，断言申请单 status=20。"""
@@ -164,7 +185,7 @@ def s16_audit(hp_session, auditor_session, audit_director_session,
             opinion="自动化测试审计意见：同意",
             template_id=template_id,
             audit_amount=float(detail.get("reportBudget") or 0),
-            reserve_amounts=[],
+            reserve_amounts=_reserve_amounts(review),
         )
         wait_until(
             lambda: (lambda d: d if d and int(d.get("auditStatus") or 0) == 2 else None)(

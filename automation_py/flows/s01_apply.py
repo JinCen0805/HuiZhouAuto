@@ -17,32 +17,47 @@ def s01_apply(session, ctx: dict) -> dict:
 
     page = ProcurementApplyPage(session)
     assert_true(page.selectable_plan_count() > 0, "没有可发起的预算计划（非本部门/已引用？）")
-    tried: set[str] = set()
-    saved = False
-    for _attempt in range(10):
-        entries = page.selectable_plan_entries()
-        candidate = next((e for e in entries if e["text"] not in tried), None)
-        if candidate is None:
-            break
-        tried.add(candidate["text"])
-        ctx["plan_text"] = candidate["text"]
-        try:
-            edit_frame = page.click_single_launch(candidate["index"])
-        except Exception as exc:  # noqa: BLE001 - 列表刷新导致索引失效时跳过
-            print(f"[S01] 打开计划失败，跳过：{str(exc)[:80]}")
-            page.page.wait_for_timeout(800)
-            continue
+    plan_count = int(ctx.get("plan_count") or 1)
+    if plan_count > 1:
+        plans = page.compatible_plan_group(plan_count)
+        ctx["plan_text"] = "、".join(p.get("text", "")[:40] for p in plans)
+        edit_frame = page.combine_launch(plans)
         page.fill_draft(edit_frame, {
             "project_name": ctx["project_name"],
             "purchase_content": "自动化测试采购内容：用于验证采购前置流程自动化的物资采购。",
             "application_reason": "自动化测试申请理由：科室业务需要，申请采购。",
+            "project_attribute": "1",
         })
-        if page.save_draft():
-            saved = True
-            print(f"[S01] 选中预算计划：{ctx['plan_text'][:120]}")
-            break
-        print(f"[S01] 该预算计划不可用，尝试下一条：{ctx['plan_text'][:80]}")
-    assert_true(saved, f"可发起预算计划均保存草稿失败（已尝试 {len(tried)} 条）")
+        saved = page.save_draft()
+        assert_true(saved, f"组合发起（{plan_count} 个预算计划）保存草稿失败：{ctx['plan_text']}")
+        print(f"[S01] 组合发起 {plan_count} 个预算计划：{ctx['plan_text'][:200]}")
+    else:
+        tried: set[str] = set()
+        saved = False
+        for _attempt in range(10):
+            entries = page.selectable_plan_entries()
+            candidate = next((e for e in entries if e["text"] not in tried), None)
+            if candidate is None:
+                break
+            tried.add(candidate["text"])
+            ctx["plan_text"] = candidate["text"]
+            try:
+                edit_frame = page.click_single_launch(candidate["index"])
+            except Exception as exc:  # noqa: BLE001 - 列表刷新导致索引失效时跳过
+                print(f"[S01] 打开计划失败，跳过：{str(exc)[:80]}")
+                page.page.wait_for_timeout(800)
+                continue
+            page.fill_draft(edit_frame, {
+                "project_name": ctx["project_name"],
+                "purchase_content": "自动化测试采购内容：用于验证采购前置流程自动化的物资采购。",
+                "application_reason": "自动化测试申请理由：科室业务需要，申请采购。",
+            })
+            if page.save_draft():
+                saved = True
+                print(f"[S01] 选中预算计划：{ctx['plan_text'][:120]}")
+                break
+            print(f"[S01] 该预算计划不可用，尝试下一条：{ctx['plan_text'][:80]}")
+        assert_true(saved, f"可发起预算计划均保存草稿失败（已尝试 {len(tried)} 条）")
     print(f"[S01] 草稿已保存：{ctx['project_name']}")
 
     page.open_applications_tab()

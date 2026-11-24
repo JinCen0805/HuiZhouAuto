@@ -17,14 +17,16 @@ def s05_package(session, ctx: dict) -> dict:
     page.search(ctx["project_name"])
 
     editor = page.open_editor(ctx["request_code"])
-    subpackage_name = f"{ctx['project_name']}-子包1"
-    page.add_subpackage(editor, subpackage_name)
-    wait_until(
-        lambda: page.editor_contains(editor, subpackage_name),
-        timeout_s=20,
-        message=f"新增子包后编辑页未出现子包名 {subpackage_name!r}",
-    )
-    print(f"[S05] 子包已保存：{subpackage_name}")
+    plan_count = int(ctx.get("plan_count") or 1)
+    for index in range(1, plan_count + 1):
+        subpackage_name = f"{ctx['project_name']}-子包{index}"
+        page.add_subpackage(editor, subpackage_name)
+        wait_until(
+            lambda name=subpackage_name: page.editor_contains(editor, name),
+            timeout_s=20,
+            message=f"新增子包后编辑页未出现子包名 {subpackage_name!r}",
+        )
+        print(f"[S05] 子包已保存：{subpackage_name}")
     page.close_editor()
 
     # 关闭编辑弹窗后列表刷新，重新搜索再确认

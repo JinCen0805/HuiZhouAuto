@@ -60,6 +60,51 @@ class ProcurementApplyPage:
         button.click(force=True, timeout=10000)
         return browser_helpers.get_frame(self.page, "procurementApply/edit.html")
 
+    # ── 组合发起（一条申请单使用多个预算计划）─────────────────
+    def selectable_plan_groups(self) -> list[list[dict]]:
+        """按“项目类型 + 是否政府采购 + 是否预留中小企业份额”分组可勾选的预算计划。"""
+        rows = self.frame.evaluate(
+            """() => Array.from(document.querySelectorAll('.launch-reserve-checkbox'))
+                .filter(el => el.offsetParent !== null && !el.disabled)
+                .map(el => ({
+                    uuid: el.getAttribute('data-uuid') || '',
+                    type: el.getAttribute('data-type') || '',
+                    gov: el.getAttribute('data-gov') || '',
+                    sme: el.getAttribute('data-sme') || '',
+                    text: (el.closest('tr') ? el.closest('tr').innerText : '').replace(/\\s+/g, ' ').trim()
+                }))
+                .filter(row => row.uuid)"""
+        )
+        groups: dict[tuple, list[dict]] = {}
+        for row in rows:
+            groups.setdefault((row["type"], row["gov"], row["sme"]), []).append(row)
+        return list(groups.values())
+
+    def compatible_plan_group(self, count: int) -> list[dict]:
+        """取第一组数量足够的可组合预算计划。"""
+        for group in self.selectable_plan_groups():
+            if len(group) >= count:
+                return group[:count]
+        sizes = [len(group) for group in self.selectable_plan_groups()]
+        raise LookupError(f"没有 {count} 个可组合的预算计划（同项目类型/政采/中小企业口径）；分组大小={sizes}")
+
+    def combine_launch(self, plans: list[dict]):
+        """勾选多个预算计划并点“组合发起申请”，返回新增采购申请的 layer iframe。"""
+        for plan in plans:
+            checkbox = self.frame.locator(
+                f".launch-reserve-checkbox[data-uuid='{plan['uuid']}']:visible"
+            ).first
+            checkbox.check(force=True)
+            self.frame.wait_for_timeout(300)
+        button = self.frame.locator("#combineLaunchBtn")
+        button.wait_for(state="visible", timeout=10000)
+        for _ in range(30):
+            if button.is_enabled():
+                break
+            self.frame.wait_for_timeout(300)
+        button.click()
+        return browser_helpers.get_frame(self.page, "procurementApply/edit.html")
+
     def fill_draft(self, edit_frame, data: dict) -> None:
         edit_frame.locator("[idname='projectName']").wait_for(state="visible", timeout=15000)
         edit_frame.fill("[idname='projectName']", data["project_name"])
@@ -105,7 +150,8 @@ class ProcurementApplyPage:
                 text = (layers.nth(i).inner_text(timeout=1000) or "").strip()
             except Exception:  # noqa: BLE001
                 continue
-            if any(word in text for word in ("不存在", "不可引用", "失败", "错误", "不能", "请选择")):
+            if any(word in text for word in
+                   ("不存在", "不可引用", "失败", "错误", "不能", "请选择", "请输入")):
                 return text
         return ""
 
