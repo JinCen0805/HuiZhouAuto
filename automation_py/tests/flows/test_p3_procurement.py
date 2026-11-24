@@ -55,7 +55,7 @@ def test_full_chain_to_procurement(flow_sessions, config, run_id):
     s11_extract(applicant, ctx)
     s13_argument(applicant, ctx)
     s15_requirement(applicant, director, ctx)
-    s16_audit(applicant, auditor, audit_director, ctx)
+    s16_audit(applicant, auditor, audit_director, director, ctx)
 
     # WP7
     s17_final_confirmation(applicant, director, ctx)

@@ -88,9 +88,9 @@ def build_steps(sessions: dict) -> list[Step]:
              lambda ctx: s13_argument(S["applicant"], ctx)),
         Step("S15", "采购需求书编制 + BT14",
              lambda ctx: s15_requirement(S["applicant"], S["director"], ctx)),
-        Step("S16", "采购文件审计（推送/审理/主任通过）",
+        Step("S16", "采购文件审计（初稿复核/推送/审理/主任通过）",
              lambda ctx: s16_audit(
-                 S["applicant"], S["auditor"], S["auditDirector"], ctx)),
+                 S["applicant"], S["auditor"], S["auditDirector"], S["director"], ctx)),
         Step("S17", "终稿确认 + BT14",
              lambda ctx: s17_final_confirmation(S["applicant"], S["director"], ctx)),
         Step("S18", "三方需求审查（财务/审计/采购/纪检）",

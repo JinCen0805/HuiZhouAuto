@@ -55,7 +55,7 @@ def test_requirement_and_audit(flow_sessions, config, run_id):
     s15_requirement(applicant, director, ctx)
 
     # S16 审计
-    s16_audit(applicant, auditor, audit_director, ctx)
+    s16_audit(applicant, auditor, audit_director, director, ctx)
 
     assert ctx.get("audit_passed") is True
     print("\n[P2] 需求编制与审计通过（status=20 审计通过待二次确认）")

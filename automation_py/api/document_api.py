@@ -86,12 +86,8 @@ def find_audit(session, project_code: str) -> dict | None:
     return None
 
 
-def auditor_candidates(session) -> list[dict]:
-    body = session.api(f"{HP_AUDIT}/auditorCandidates").json() or {}
-    return body.get("data") or []
-
-
 def push_audit(session, audit_id: str, auditor_user_id: str,
+               submission_id: str = "",
                attach_requirement_document: int = 1) -> dict:
     body = session.api(
         f"{HP_AUDIT}/{audit_id}/push",
@@ -99,8 +95,76 @@ def push_audit(session, audit_id: str, auditor_user_id: str,
         json={
             "auditorUserId": auditor_user_id,
             "attachRequirementDocument": attach_requirement_document,
+            "submissionId": submission_id,
         },
     ).json() or {}
     if not body.get("success"):
         raise RuntimeError(f"推送审计失败：{str(body)[:400]}")
     return body.get("data") or {}
+
+
+# ── HP 审计初稿（2026-11-24 承办主任复核流程） ────────────────
+def audit_report_detail(session, audit_id: str) -> dict:
+    body = session.api(f"{HP_AUDIT}/{audit_id}/report/detail").json() or {}
+    if not body.get("success"):
+        raise RuntimeError(f"审计报告详情查询失败：{str(body)[:400]}")
+    return body.get("data") or {}
+
+
+def audit_report_templates(session, audit_id: str) -> list[dict]:
+    body = session.api(f"{HP_AUDIT}/{audit_id}/report/templates").json() or {}
+    if not body.get("success"):
+        raise RuntimeError(f"审计报告模板查询失败：{str(body)[:400]}")
+    return body.get("list") or (body.get("data") or {}).get("templates") or []
+
+
+def init_audit_report(session, audit_id: str, template_id: str) -> dict:
+    body = session.api(
+        f"{HP_AUDIT}/{audit_id}/report/initialize?templateId={template_id}",
+        method="POST",
+    ).json() or {}
+    if not body.get("success"):
+        raise RuntimeError(f"初始化审计报告失败：{str(body)[:400]}")
+    return body.get("data") or {}
+
+
+def submit_audit_draft(session, audit_id: str, report: dict) -> str:
+    """承办干事提交已保存的审计初稿，返回 submissionId。"""
+    report_id = report.get("reportId")
+    file_id = report.get("fileId")
+    version = report.get("reportVersion")
+    if not (report_id and file_id and version):
+        raise RuntimeError(f"审计报告缺少提交字段：{str(report)[:400]}")
+    body = session.api(
+        f"{HP_AUDIT}/{audit_id}/draft/submit?reportId={report_id}"
+        f"&reportVersion={version}&fileId={file_id}",
+        method="POST",
+    ).json() or {}
+    if not body.get("success"):
+        raise RuntimeError(f"提交审计初稿失败：{str(body)[:400]}")
+    return (body.get("data") or {}).get("submissionId") or ""
+
+
+def review_audit_draft(session, audit_id: str, submission_id: str,
+                       approved: bool = True, reason: str = "") -> dict:
+    """承办部门主任复核审计初稿。"""
+    query = f"submissionId={submission_id}&approved={'true' if approved else 'false'}"
+    if reason:
+        from urllib.parse import quote
+
+        query += f"&reason={quote(reason)}"
+    body = session.api(
+        f"{HP_AUDIT}/{audit_id}/draft/review?{query}", method="POST"
+    ).json() or {}
+    if not body.get("success"):
+        raise RuntimeError(f"审计初稿复核失败：{str(body)[:400]}")
+    return body
+
+
+def audit_auditor_candidates(session, audit_id: str, submission_id: str) -> list[dict]:
+    body = session.api(
+        f"{HP_AUDIT}/auditorCandidates?auditId={audit_id}&submissionId={submission_id}"
+    ).json() or {}
+    if not body.get("success"):
+        raise RuntimeError(f"审计员候选人查询失败：{str(body)[:400]}")
+    return body.get("data") or []
