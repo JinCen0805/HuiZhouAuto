@@ -16,6 +16,15 @@ class ArgumentApi:
             raise RuntimeError(f"专业目录查询失败：{str(body)[:300]}")
         return (body.get("data") or {}).get("majors") or []
 
+    def list_departments(self) -> list[dict]:
+        """专家库科室目录（含下级汇总人数）。2026-11-24 起院内抽取按科室规划。"""
+        body = self.session.api(
+            f"{ARGUMENT_PREFIX}/listDepartments", headers={"Accept": "application/json"}
+        ).json() or {}
+        if not body.get("success"):
+            raise RuntimeError(f"科室目录查询失败：{str(body)[:300]}")
+        return (body.get("data") or {}).get("departments") or []
+
     def get_detail(self, survey_uuid: str) -> dict:
         body = self.session.api(f"{ARGUMENT_PREFIX}/getDetail?uuid={survey_uuid}").json() or {}
         if not body.get("success"):
@@ -30,24 +39,29 @@ class ArgumentApi:
             raise RuntimeError(f"规划抽取失败：{str(body)[:500]}")
         return body
 
-    def list_manual_candidates(self, survey_uuid: str, specialty_code: str,
-                               current: int = 1, size: int = 20) -> list[dict]:
+    def list_manual_candidates(self, survey_uuid: str, specialty_code: str = "",
+                                department_node_id: str = "",
+                                current: int = 1, size: int = 20) -> list[dict]:
+        condition = (f"&departmentNodeId={department_node_id}" if department_node_id
+                     else f"&specialtyCode={specialty_code}")
         body = self.session.api(
             f"{ARGUMENT_PREFIX}/listManualCandidates?uuid={survey_uuid}"
-            f"&specialtyCode={specialty_code}&expertName=&current={current}&size={size}"
+            f"{condition}&expertName=&current={current}&size={size}"
         ).json() or {}
         if not body.get("success"):
             raise RuntimeError(f"手动候选查询失败：{str(body)[:300]}")
         return (body.get("data") or {}).get("candidates") or []
 
-    def save_manual_experts(self, survey_uuid: str, specialty_code: str,
-                            expert_uuids: list[str]) -> dict:
+    def save_manual_experts(self, survey_uuid: str, expert_uuids: list[str],
+                            specialty_code: str = "", department_node_id: str = "") -> dict:
+        condition = ({"departmentNodeId": department_node_id} if department_node_id
+                     else {"specialtyCode": specialty_code})
         body = self.session.api(
             f"{ARGUMENT_PREFIX}/saveManualExperts",
             method="POST",
             json={
                 "surveyProjectUuid": survey_uuid,
-                "specialtyCode": specialty_code,
+                **condition,
                 "expertUuids": expert_uuids,
             },
         ).json() or {}

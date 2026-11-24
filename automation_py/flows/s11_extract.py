@@ -29,12 +29,46 @@ def s11_extract(session, ctx: dict) -> dict:
         ctx["survey_project_uuid"] = survey_uuid
 
     majors = api.list_majors()
-    usable = [m for m in majors if int(m.get("expertCount") or 0) >= 3]
-    assert_true(bool(usable), "专业目录里没有专家数 >=3 的专业")
-    # 系统要求抽取条件必须带专业，不能传空。优先选人数足够的最上级专业，覆盖其下级专业。
-    major = min(usable, key=lambda item: (len(str(item.get("code") or "")), str(item.get("code") or "")))
-    specialty_code = major["code"]
-    print(f"[S11] 专业：{major.get('name')}（{specialty_code}），可用专家 {major.get('expertCount')}")
+    # 2026-11-24 起院内专家按科室管理：科室目录带「含下级」可抽人数，优先按科室规划。
+    # 线上旧版本可能还没有 listDepartments，回落到专业模式。
+    try:
+        departments = api.list_departments()
+    except Exception as exc:  # noqa: BLE001 - 兼容未升级环境
+        print(f"[S11] 科室目录不可用，回落到专业模式：{str(exc)[:120]}")
+        departments = []
+    usable_depts = [d for d in departments if int(d.get("expertCount") or 0) >= 3]
+    usable_majors = [m for m in majors if int(m.get("expertCount") or 0) >= 3]
+    assert_true(bool(usable_depts or usable_majors), "科室/专业目录里都没有可抽人数 >=3 的节点")
+    if usable_depts:
+        dimension = "department"
+        # 取可抽人数最多的科室节点（人数已含下级科室），保证 3 人足够。
+        node = max(usable_depts, key=lambda item: (int(item.get("expertCount") or 0),
+                                                   str(item.get("id") or "")))
+        condition_key = str(node["id"])
+        condition_name = node.get("name") or condition_key
+        condition = {
+            "departmentNodeId": condition_key,
+            "departmentName": condition_name,
+            "expertCount": 3,
+            "isDrawLocal": "1",
+            "expertType": "1",
+        }
+        print(f"[S11] 科室：{condition_name}（{condition_key}），可抽人数 {node.get('expertCount')}")
+    else:
+        dimension = "specialty"
+        # 系统要求抽取条件必须带专业，不能传空。优先选人数足够的最上级专业，覆盖其下级专业。
+        major = min(usable_majors, key=lambda item: (len(str(item.get("code") or "")),
+                                                     str(item.get("code") or "")))
+        condition_key = major["code"]
+        condition_name = major.get("name")
+        condition = {
+            "specialtyCode": condition_key,
+            "specialtyName": condition_name,
+            "expertCount": 3,
+        }
+        print(f"[S11] 专业：{condition_name}（{condition_key}），可用专家 {major.get('expertCount')}")
+    ctx["argument_dimension"] = dimension
+    ctx["argument_condition_key"] = condition_key
 
     now = datetime.datetime.now()
     fmt = "%Y-%m-%d %H:%M:%S"
@@ -48,11 +82,7 @@ def s11_extract(session, ctx: dict) -> dict:
         "gatherPlace": "自动化测试会议室",
         "evaluateExpertNumber": 3,
         "leaderSelectMode": "MANUAL",
-        "conditions": [{
-            "specialtyCode": specialty_code,
-            "specialtyName": major.get("name"),
-            "expertCount": 3,
-        }],
+        "conditions": [condition],
     }
     ctx["gather_time"] = gather_start.strftime(fmt)
     api.start_extract(payload)
@@ -83,7 +113,9 @@ def s11_extract(session, ctx: dict) -> dict:
     # 勾选专家（等抽取值可查）
     candidates = wait_until(
         lambda: (lambda rows: rows if rows else None)(
-            api.list_manual_candidates(survey_uuid, specialty_code)
+            api.list_manual_candidates(survey_uuid, department_node_id=condition_key)
+            if dimension == "department"
+            else api.list_manual_candidates(survey_uuid, specialty_code=condition_key)
         ),
         timeout_s=30,
         message="手动抽选候选为空（抽取项目尚未就绪）",
@@ -94,7 +126,11 @@ def s11_extract(session, ctx: dict) -> dict:
         if uuid:
             expert_uuids.append(uuid)
     assert_true(len(expert_uuids) == 3, f"可用候选不足 3 人：{expert_uuids}")
-    api.save_manual_experts(survey_uuid, specialty_code, expert_uuids)
+    if dimension == "department":
+        api.save_manual_experts(survey_uuid, expert_uuids,
+                                department_node_id=condition_key)
+    else:
+        api.save_manual_experts(survey_uuid, expert_uuids, specialty_code=condition_key)
     print(f"[S11] 已勾选专家：{expert_uuids}")
 
     # mock 电话确认（keypress=1 = 参加）
@@ -137,7 +173,10 @@ def s11_extract(session, ctx: dict) -> dict:
     def _extract_done():
         try:
             # 触发 HP 从 Dubbo 同步专家状态
-            api.list_manual_candidates(survey_uuid, specialty_code)
+            if dimension == "department":
+                api.list_manual_candidates(survey_uuid, department_node_id=condition_key)
+            else:
+                api.list_manual_candidates(survey_uuid, specialty_code=condition_key)
         except Exception:  # noqa: BLE001 - 抽取完成后该接口可能返回不同结构，忽略
             pass
         current = api.get_detail(survey_uuid)
