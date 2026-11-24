@@ -99,3 +99,31 @@
 - OnlyOffice 正文不填：人工走前置流程时不在编辑器里改正文，自动化已删除对应填充代码。
   需求书和审计报告保持模板生成结果；审计报告仍按原流程标记已保存。
 - 默认回归基线在删除前为 51 passed / 4 skipped。提交：`fa18499`。
+
+## 2026-11-24 本地项目更新适配
+
+本地项目更新（hospital-procurement `0a6ecd27`、GovernmentProcurement `38c35b4`、
+professor `07d9aba`、procurement-execution `fc7786a`、ebidding-business-approval `cca66f5` 等）
+后，前置相关变更与适配结果：
+
+- **专家抽取改按科室**（`16536d2b` 等）：
+  - S11 改为优先调用 `listDepartments`，用 `departmentNodeId` 规划/勾选专家；
+    科室目录不可用时回落原专业模式（兼容未升级环境）。
+- **审计初稿增加承办部门主任复核**（`9d506754` 等）：
+  - 新链路：承办干事初始化/保存审计报告初稿 → 提交主任复核 → 承办部门主任复核并选审计员推送
+    → 审计员审理 → 审计部主任通过；
+  - S16 改用 HP `/hospitalPurchaseAudit/{id}/report/*`、`draft/*` 接口，本地保存仍走
+    OnlyOffice JWT 回调（HP 回调地址），推送时携带 `submissionId`。
+- **采购执行审批角色修复**（BT13 紧急 1~3 万走主管副院长）：常规路径不受影响，S20 5 节点照常通过。
+- **审计报告初始化/审计分页/审查汇总明细修复**：S15/S16/S18 回归通过。
+- **合同、支付凭证、履约、质疑投诉、站内信**：属采购中之后流程，不影响前置。
+
+5 种采购方式本地全链回归（均 `status=9 采购中`）：
+
+| 方式 | 场景 | 结果 | 报告目录 |
+|---|---|---|---|
+| 1 | 委托采购 | success | `reports/UI自动化-20261124-M1` |
+| 2 | 比选采购 | success | `reports/UI自动化-20261124-M2R2` |
+| 3 | 竞争谈判采购 | success | `reports/UI自动化-20261124-M3` |
+| 4 | 唯一来源谈判（含会议纪要附件） | success | `reports/UI自动化-20261124-M4` |
+| 7 | 院内议价 | success | `reports/UI自动化-20261124-M7` |
