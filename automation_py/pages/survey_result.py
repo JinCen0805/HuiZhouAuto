@@ -15,11 +15,13 @@ class SurveyResultPage:
     def __init__(self, session):
         self.session = session
         self.page = session.page
+        browser_helpers.close_all_layers(self.page)
         self.frame = session.open_module(MODULE_URL, "调研结果管理", MENU_ID)
         self.frame.locator("#doSearch").wait_for(state="visible", timeout=20000)
         self.frame.wait_for_timeout(1500)
 
     def search(self, project_name: str) -> None:
+        browser_helpers.close_all_layers(self.page)
         self.frame.locator("[idname='projectName']").fill(project_name)
         self.frame.click("#doSearch")
         self.frame.wait_for_timeout(1500)
@@ -44,28 +46,41 @@ class SurveyResultPage:
     def handler_pass_all(self, detail_frame) -> int:
         count = detail_frame.locator("#supplierPane .supplier-item").count()
         passed = 0
-        for index in range(count):
-            item = detail_frame.locator("#supplierPane .supplier-item").nth(index)
-            item.click()
-            detail_frame.wait_for_timeout(800)
-            pass_btn = detail_frame.locator("#btnPass")
-            if pass_btn.count() == 0 or not pass_btn.is_visible():
-                continue  # 已审过/不允许
-            pass_btn.click()
-            browser_helpers.confirm_dialog(self.page, detail_frame)
-            detail_frame.wait_for_timeout(1200)
-            passed += 1
-            print(f"[S10] 供应商 {index + 1}/{count} 初审通过")
+        # 供应商详情面板首次点击可能还没渲染出“通过”，多轮兜底直到全部合格。
+        for _round in range(3):
+            pending = 0
+            for index in range(count):
+                item = detail_frame.locator("#supplierPane .supplier-item").nth(index)
+                text = item.inner_text()
+                if "合格" in text:
+                    continue
+                pending += 1
+                item.click()
+                pass_btn = detail_frame.locator("#btnPass")
+                deadline = 10
+                while deadline > 0:
+                    if pass_btn.count() > 0 and pass_btn.is_visible():
+                        break
+                    detail_frame.wait_for_timeout(500)
+                    deadline -= 1
+                if pass_btn.count() == 0 or not pass_btn.is_visible():
+                    continue  # 详情未加载/不允许，交给下一轮
+                pass_btn.click()
+                browser_helpers.confirm_dialog(self.page, detail_frame)
+                detail_frame.wait_for_timeout(1200)
+                passed += 1
+                print(f"[S10] 供应商 {index + 1}/{count} 初审通过")
+            if pending == 0:
+                break
+            detail_frame.wait_for_timeout(1000)
         return passed
 
     def submit_to_director(self, director_keyword: str = "zhaoliu") -> None:
-        button = self.page.locator("#btnSubmitDirector")
-        # 按钮在 detail iframe 内
+        # 提交按钮在 detail iframe 内；顶部页面可能残留同 id 的隐藏按钮，不能取顶部。
         detail = browser_helpers.get_frame(self.page, DETAIL_URL_PATTERN)
-        if button.count() == 0:
-            button = detail.locator("#btnSubmitDirector")
-        button.last.wait_for(state="visible", timeout=10000)
-        button.last.click()
+        button = detail.locator("#btnSubmitDirector").last
+        button.wait_for(state="visible", timeout=20000)
+        button.click()
 
         # 主任选择弹窗在 top
         select = self.page.locator("#pickSurveyDirectorSelect")
