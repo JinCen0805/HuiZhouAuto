@@ -69,6 +69,19 @@ class ProcurementApplyPage:
         self.frame.wait_for_timeout(1500)
         wait_table_rows(self.frame)
 
+    def next_page(self) -> bool:
+        """翻到下一页预算计划；没有下一页返回 False。"""
+        button = self.frame.locator(".layui-laypage-next").first
+        if button.count() == 0:
+            return False
+        classes = button.get_attribute("class") or ""
+        if "layui-disabled" in classes:
+            return False
+        button.click()
+        self.frame.wait_for_timeout(1500)
+        wait_table_rows(self.frame)
+        return True
+
     def selectable_plan_groups(self) -> list[list[dict]]:
         """按“项目类型 + 是否政府采购 + 是否预留中小企业份额”分组可勾选的预算计划。"""
         rows = self.frame.evaluate(

@@ -21,7 +21,22 @@ def s01_apply(session, ctx: dict) -> dict:
     if plan_count > 1:
         if ctx.get("plan_keyword"):
             page.search_plans(ctx["plan_keyword"])
-        plans = page.compatible_plan_group(plan_count)
+        plans = None
+        try:
+            plans = page.compatible_plan_group(plan_count)
+        except LookupError:
+            # 第一页没有足够的兼容计划时，向后翻页继续找。
+            for page_no in range(2, 11):
+                if not page.next_page():
+                    break
+                try:
+                    plans = page.compatible_plan_group(plan_count)
+                    print(f"[S01] 第 {page_no} 页找到 {plan_count} 个兼容预算计划")
+                    break
+                except LookupError:
+                    continue
+        assert_true(plans is not None,
+                    f"没有 {plan_count} 个可组合的预算计划（已翻页查找）：{ctx['project_name']}")
         ctx["plan_text"] = "、".join(p.get("text", "")[:40] for p in plans)
         edit_frame = page.combine_launch(plans)
         page.fill_draft(edit_frame, {
