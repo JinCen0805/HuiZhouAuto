@@ -49,6 +49,8 @@ def parse_args() -> argparse.Namespace:
                         help="采购方式：1 委托采购 / 2 比选采购(默认) / 3 竞争谈判 / 4 唯一来源 / 7 院内议比价")
     parser.add_argument("--plan-count", type=int, default=1,
                         help="一条申请单使用的预算计划数；>1 时走组合发起，并在分包阶段生成对应数量的子包")
+    parser.add_argument("--plan-keyword", default="",
+                        help="组合发起时先按预算计划名称过滤（例如本地种子计划）")
     parser.add_argument("--in-hospital-price-type", default="",
                         help="议比价方式：1 院内议价 / 2 院内比价（方式=7 时必填，默认 1）")
     parser.add_argument("--purchase-category", default="",
@@ -109,6 +111,7 @@ def main() -> int:
                 "survey_end_minutes": 1.5,
                 "execution_handler": args.handler or "采购办经办人",
                 "plan_count": max(1, int(args.plan_count or 1)),
+                "plan_keyword": args.plan_keyword or "",
             }
             if args.purchase_method:
                 ctx["purchase_method"] = args.purchase_method

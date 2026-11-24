@@ -61,6 +61,14 @@ class ProcurementApplyPage:
         return browser_helpers.get_frame(self.page, "procurementApply/edit.html")
 
     # ── 组合发起（一条申请单使用多个预算计划）─────────────────
+    def search_plans(self, keyword: str) -> None:
+        """按预算计划名称过滤，便于只组合指定来源的计划。"""
+        field = self.frame.locator("[idName='projectName']")
+        field.fill(keyword)
+        self.frame.click("#launchSearchBtn")
+        self.frame.wait_for_timeout(1500)
+        wait_table_rows(self.frame)
+
     def selectable_plan_groups(self) -> list[list[dict]]:
         """按“项目类型 + 是否政府采购 + 是否预留中小企业份额”分组可勾选的预算计划。"""
         rows = self.frame.evaluate(

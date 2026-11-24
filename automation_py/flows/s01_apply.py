@@ -19,6 +19,8 @@ def s01_apply(session, ctx: dict) -> dict:
     assert_true(page.selectable_plan_count() > 0, "没有可发起的预算计划（非本部门/已引用？）")
     plan_count = int(ctx.get("plan_count") or 1)
     if plan_count > 1:
+        if ctx.get("plan_keyword"):
+            page.search_plans(ctx["plan_keyword"])
         plans = page.compatible_plan_group(plan_count)
         ctx["plan_text"] = "、".join(p.get("text", "")[:40] for p in plans)
         edit_frame = page.combine_launch(plans)
