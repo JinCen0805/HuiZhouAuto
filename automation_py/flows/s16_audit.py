@@ -52,29 +52,31 @@ def _ensure_draft_and_push(hp_session, dept_director_session, audit: dict,
     detail = audit_report_detail(hp_session, audit_id)
     report = detail.get("report") or {}
 
-    if not report.get("reportId"):
-        templates = detail.get("templates") or audit_report_templates(hp_session, audit_id)
-        assert_true(bool(templates), "没有可用的审计报告模板")
-        template = templates[0]
-        init_audit_report(hp_session, audit_id, template["templateId"])
+    save_mode = os.environ.get("HP_AUDIT_SAVE_MODE", "auto").strip().lower()
+    is_local = bool(getattr(getattr(hp_session, "cfg", None), "is_local", False))
+    use_editor = (not is_local) or save_mode == "editor"
+    if use_editor:
+        # 线上由承办干事在 HP 审计初稿页的 OnlyOffice 编辑器里真实保存。
+        from pages.audit_draft import AuditDraftPage
+
+        AuditDraftPage(hp_session, audit_id).ensure_report_saved()
         detail = audit_report_detail(hp_session, audit_id)
         report = detail.get("report") or {}
-        print(f"[S16] 已生成审计报告初稿：{report.get('fileName')}")
+    else:
+        if not report.get("reportId"):
+            templates = detail.get("templates") or audit_report_templates(hp_session, audit_id)
+            assert_true(bool(templates), "没有可用的审计报告模板")
+            template = templates[0]
+            init_audit_report(hp_session, audit_id, template["templateId"])
+            detail = audit_report_detail(hp_session, audit_id)
+            report = detail.get("report") or {}
+            print(f"[S16] 已生成审计报告初稿：{report.get('fileName')}")
 
-    if int(report.get("reportStatus") or 0) != 2:
-        save_mode = os.environ.get("HP_AUDIT_SAVE_MODE", "auto").strip().lower()
-        is_local = bool(getattr(getattr(hp_session, "cfg", None), "is_local", False))
-        if (not is_local) or save_mode == "editor":
-            # 线上由 OnlyOffice 编辑器真实保存；本地如需走编辑器也复用该入口。
-            from pages.audit_review import AuditReviewPage
-
-            AuditReviewPage(hp_session, audit_id).ensure_report_saved()
-            print("[S16] 审计报告初稿已保存（OnlyOffice 编辑器）")
-        else:
+        if int(report.get("reportStatus") or 0) != 2:
             save_hp_report_via_callback(hp_session, audit_id)
             print("[S16] 审计报告初稿已保存（本地回调）")
-        detail = audit_report_detail(hp_session, audit_id)
-        report = detail.get("report") or {}
+            detail = audit_report_detail(hp_session, audit_id)
+            report = detail.get("report") or {}
 
     # 提交初稿；已提交过则复用列表行上的 submissionId
     row = _page_row(hp_session, project_code) or audit
