@@ -142,3 +142,17 @@ professor `07d9aba`、procurement-execution `fc7786a`、ebidding-business-approv
 | 6 | 医院医疗区域专项保洁及终末消毒服务项目 | 7 比价（院内比价） | GC-YWB-CG20260035 | `reports/UI自动化-20261124-A6` |
 
 采购方式落库核对：方法 1/2/3/4/7、议比价方式 1 与 2 均正确，审批状态 3（已通过）。
+
+## 2026-11-24 线上 172.16.29.215 委托采购全链
+
+- 线上只读冒烟：PASS 40 / FAIL 0（15 个账号、10 个业务页面、OnlyOffice 均正常）。
+- 项目名：医院出入口安检、访客登记管理服务采购项目；方式：**1 委托采购**。
+- 申请单：`HW-YWB-CG20260201`；结果：**success / status=9 采购中**；
+  报告：`reports/UI自动化-20261124-ON2/report.html`。
+- 线上适配：
+  - `pages/audit_draft.py`：直接打开 HP `auditManagement/draftWorkflow.html`，
+    通过 OnlyOffice 在线编辑器真实保存审计初稿（线上禁止伪造回调）；
+  - S06 增加幂等跳过、等待放宽到 60s、列表操作前清理残留遮罩。
+- S06 首次保存在线上偶发未生效，编排重试后成功；已保留现场和日志。
+- 排障过程产生同名的 `HW-YWB-CG20260200`（首次续跑漏传 `--purchase-method 1`，
+  实际落成比选采购，status=9）；最终委托采购单以 `HW-YWB-CG20260201` 为准。
