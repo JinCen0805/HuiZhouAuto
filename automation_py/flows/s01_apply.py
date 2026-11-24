@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 
-from api.hp_api import get_purchase_request, get_user_info
+from api.hp_api import find_request_by_name, get_purchase_request, get_user_info
 from core.assert_helper import assert_status, assert_true
 from flows.common import wait_until
 from pages.procurement_apply import ProcurementApplyPage
@@ -31,6 +31,12 @@ def s01_apply(session, ctx: dict) -> dict:
             "project_attribute": "1",
         })
         saved = page.save_draft()
+        if not saved:
+            draft = find_request_by_name(session, ctx["department_id"], ctx["project_name"])
+            if draft and int(draft.get("status") or 0) == 0:
+                saved = True
+                page._close_all_layers()
+                print("[S01] 草稿已落库（编辑弹窗未自动关闭，已按草稿确认）")
         assert_true(saved, f"组合发起（{plan_count} 个预算计划）保存草稿失败：{ctx['plan_text']}")
         print(f"[S01] 组合发起 {plan_count} 个预算计划：{ctx['plan_text'][:200]}")
     else:
@@ -57,6 +63,12 @@ def s01_apply(session, ctx: dict) -> dict:
             if page.save_draft():
                 saved = True
                 print(f"[S01] 选中预算计划：{ctx['plan_text'][:120]}")
+                break
+            draft = find_request_by_name(session, ctx["department_id"], ctx["project_name"])
+            if draft and int(draft.get("status") or 0) == 0:
+                saved = True
+                page._close_all_layers()
+                print(f"[S01] 草稿已落库（编辑弹窗未自动关闭）：{ctx['plan_text'][:80]}")
                 break
             print(f"[S01] 该预算计划不可用，尝试下一条：{ctx['plan_text'][:80]}")
         assert_true(saved, f"可发起预算计划均保存草稿失败（已尝试 {len(tried)} 条）")
