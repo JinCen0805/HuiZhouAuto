@@ -8,15 +8,6 @@ class AuditApi:
     def __init__(self, session):
         self.session = session
 
-    def page(self, audit_status: int | None = None, size: int = 20) -> list[dict]:
-        query = f"pageNum=1&pageSize={size}"
-        if audit_status is not None:
-            query += f"&auditStatus={audit_status}"
-        body = self.session.api(f"{JJJC_AUDIT}/page?{query}").json() or {}
-        if not body.get("success"):
-            raise RuntimeError(f"审计列表查询失败：{str(body)[:300]}")
-        return (body.get("data") or {}).get("records") or []
-
     def review(self, audit_id: str) -> dict:
         body = self.session.api(f"{JJJC_AUDIT}/{audit_id}/review").json() or {}
         if not body.get("success"):
@@ -27,14 +18,6 @@ class AuditApi:
         body = self.session.api(f"{JJJC_AUDIT}/{audit_id}/detail").json() or {}
         if not body.get("success"):
             raise RuntimeError(f"审计详情查询失败：{str(body)[:300]}")
-        return body.get("data") or {}
-
-    def init_report(self, audit_id: str, template_id: str) -> dict:
-        body = self.session.api(
-            f"{JJJC_AUDIT}/{audit_id}/report", method="POST", json={"templateId": template_id}
-        ).json() or {}
-        if not body.get("success"):
-            raise RuntimeError(f"创建审计报告失败：{str(body)[:400]}")
         return body.get("data") or {}
 
     def save_review(self, audit_id: str, opinion: str, template_id: str,

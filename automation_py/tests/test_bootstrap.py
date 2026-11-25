@@ -12,7 +12,6 @@ def test_core_modules_importable() -> None:
     import core.browser  # noqa: F401
     import core.config  # noqa: F401
     import core.reporter  # noqa: F401
-    import core.retry  # noqa: F401
     import core.session  # noqa: F401
 
 

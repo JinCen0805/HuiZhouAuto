@@ -33,10 +33,11 @@
 
 - 代码：`automation_py/`（api/core/flows/pages/scripts/tests）
 - 文档：
-  - `docs/快速上手.md`
+  - `README.md`
+  - `docs/环境切换.md`
+  - `docs/采购方式选择.md`
   - `docs/环境修复手册.md`
   - `docs/已知限制.md`
-  - `docs/交付验收报告.md`
 - 分析：`analysis/`（可行性评估、开发计划、技术方案、手工步骤拆解）
 - 报告样例：`automation_py/reports/<runId>/report.html`（不入库）
 

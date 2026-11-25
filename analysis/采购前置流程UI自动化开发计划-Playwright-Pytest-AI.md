@@ -8,7 +8,7 @@
 | 技术栈 | Python 3.12 + Playwright 1.65.2 + Pytest 9 + pytest-playwright + allure-pytest + requests |
 | 代码仓库 | `D:\Desktop\HuiZhouAuto`（GitHub: JinCen0805/HuiZhouAuto，private） |
 | 被控系统 | 本地全栈 `http://127.0.0.1`；源码只读参考 `D:\Desktop\HuiZhouProject` |
-| 替代文档 | 本计划替代 v1.0《采购前置流程UI自动化开发计划》（JS 版 / 人天制估算），保留作历史 |
+| 替代文档 | 本计划替代 v1.0《采购前置流程UI自动化开发计划》（JS 版 / 人天制估算），v1.0 已删除 |
 | 关联文档 | `analysis/采购前置流程UI自动化技术方案.md`（Playwright+Pytest 技术方案）、`analysis/采购前置流程UI自动化可行性评估.md`、`analysis/A_manual_steps.md`、`B_frontend_selectors.md`、`C_backend_data.md`、`D_env_login.md` |
 
 ---
