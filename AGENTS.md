@@ -25,7 +25,8 @@
 4. **小步提交**：每个工作包完成并验收后提交一次（中文 commit message）；
    禁止一次提交多个工作包。
 5. **会话流程**：先 `python scripts/env_check.py` + `python -m pytest -q`，再动代码；
-   结束更新 `PROGRESS.md` 并 push。
+   仅在代码/能力/环境发生变化时更新 `PROGRESS.md` 并 push；单次验证/回归跑数不逐条记录，
+   必要时只在阶段性汇总里记一笔。
 6. **不执行危险操作**：不跑无 WHERE 的 SQL；不删除非本 `runId` 前缀数据；
    环境配置改动（`db/infra/local-stack`、`openresty/local-dev`）先征得用户同意。
 7. **失败保留现场**：截图/日志/trace 保存到 `reports/{runId}/`，报告写清阶段与原因。
