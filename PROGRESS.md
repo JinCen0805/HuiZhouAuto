@@ -235,3 +235,6 @@ S16 按每个预算计划填写审计数量/单价。本地全链均 `status=9 �
 - 追加复跑：医院处方流转与药学服务管理平台项目 / 3 竞争谈判 / `FW-YWB-CG20260115` /
   3 计划 76,200 / status=9；3 子包、每个 1 条 `reserveProjects`，`purchaseMethod=3`；
   S06 首次保存未生效，自动重试后通过。
+- 追加复跑：医院运维监控与 IT 服务管理（ITSM）平台项目 / 1 委托采购 /
+  `FW-YWB-CG20260116` / 3 计划 67,600 / status=9；3 子包、每个 1 条
+  `reserveProjects`，`purchaseMethod=1`。
