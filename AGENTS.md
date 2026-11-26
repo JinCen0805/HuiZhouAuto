@@ -1,7 +1,7 @@
 # HuiZhouAuto · AI 协作规则
 
-> 本文件是 AI 在本仓库工作的硬性约定。每次会话开始先读本文件、`PROGRESS.md`、
-> `analysis/采购前置流程UI自动化开发计划-Playwright-Pytest-AI.md`。
+> 本文件是 AI 在本仓库工作的硬性约定。每次会话开始先读本文件；`PROGRESS.md` 在需要了解
+> 能力/环境现状时再查，`analysis/` 仅在改流程代码时按需查阅。
 
 ## 1. 项目目标
 
@@ -22,11 +22,16 @@
 2. **选择器实测**：选择器必须打开真实页面验证；接口字段必须来自真实响应，不臆造。
 3. **密码零落地**：密码只从环境变量或 `automation_py/.env.local`（gitignore）读取；
    禁止写入代码、配置、文档、日志、提交。
-4. **小步提交**：每个工作包完成并验收后提交一次（中文 commit message）；
-   禁止一次提交多个工作包。
-5. **会话流程**：先 `python scripts/env_check.py` + `python -m pytest -q`，再动代码；
-   仅在代码/能力/环境发生变化时更新 `PROGRESS.md` 并 push；单次验证/回归跑数不逐条记录，
-   必要时只在阶段性汇总里记一笔。
+4. **小步提交**：仅当代码（含脚本、规则文件）发生变化时提交，每个工作包一次
+   （中文 commit message）；纯跑数不提交。
+5. **会话流程（两种模式）**：
+   - **跑数（不改代码）**：`env_check.py` → `scripts/probe_online_precheck.py`
+     （名字/计划/经办人）→ 逐条 `scripts/run_full_chain.py`（输出落
+     `reports/{runId}/console.log`）→ `scripts/verify_online_result.py` 只读核对；
+     任一步失败即停。不写 `PROGRESS.md`、不提交，结果以汇总表回复。
+   - **改代码**：改前跑目标环境 `env_check.py` + `pytest -q tests/unit`；改了
+     `flows/`、`core/`、`pages/`、`api/` 再跑全量 `pytest -q`（需本地栈）。验证后提交。
+   - `PROGRESS.md` 只记能力/代码、环境、已知问题三类变化；跑数记录不入库。
 6. **不执行危险操作**：不跑无 WHERE 的 SQL；不删除非本 `runId` 前缀数据；
    环境配置改动（`db/infra/local-stack`、`openresty/local-dev`）先征得用户同意。
 7. **失败保留现场**：截图/日志/trace 保存到 `reports/{runId}/`，报告写清阶段与原因。
@@ -50,6 +55,13 @@ cd D:\Desktop\HuiZhouAuto\automation_py
 & $py scripts/env_check.py
 & $py -m pytest -q
 & $py -m pytest tests/smoke -v
+
+# 跑数（线上示例；本地去掉 HP_* 变量）
+$env:HP_ENV='online'; $env:HP_BASE_URL='http://172.16.29.215'; $env:HP_ALLOW_ONLINE_WRITES='1'
+& $py scripts/probe_online_precheck.py --plan-count 3 --name "项目名"
+& $py scripts/run_full_chain.py --run-id UI自动化-YYYYMMDD-R01 --project-name "项目名" `
+    --purchase-method 2 --plan-count 3
+& $py scripts/verify_online_result.py --code "申请单号" --expect-method 2 --expect-plans 3
 ```
 
 ## 6. Git
