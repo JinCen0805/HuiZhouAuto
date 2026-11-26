@@ -15,6 +15,15 @@ def s01_apply(session, ctx: dict) -> dict:
     ctx["department_id"] = info.get("organizationId")
     assert_true(bool(ctx["department_id"]), f"用户信息缺少 organizationId：{str(info)[:200]}")
 
+    # 同名申请防重：已存在（含草稿）直接报错，避免重复建单；续跑用 --resume --request-code。
+    existing = find_request_by_name(session, ctx["department_id"], ctx["project_name"])
+    assert_true(
+        existing is None,
+        f"同名采购申请已存在：{existing.get('requestCode') if existing else ''}"
+        f"（status={existing.get('status') if existing else ''}），"
+        f"请换名字或用 --resume --request-code 续跑",
+    )
+
     page = ProcurementApplyPage(session)
     assert_true(page.selectable_plan_count() > 0, "没有可发起的预算计划（非本部门/已引用？）")
     plan_count = int(ctx.get("plan_count") or 1)
