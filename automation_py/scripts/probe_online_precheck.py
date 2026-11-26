@@ -37,6 +37,11 @@ def check_pe_routes(session) -> None:
         resp = session.api(path)
         body = resp.text[:160].replace("\n", " ")
         print(f"    {resp.status_code} {path} -> {body}")
+    # 采购执行经办人候选：确认 --handler 指定的账号/姓名在候选里，以及默认“采购办经办人”对应哪个账号
+    contacts = (session.api("/ProcurementExecution/purchase/purchaseProject/purchaseContactList")
+                .json() or {}).get("list") or []
+    print("    执行经办人候选："
+          + "、".join(f"{c.get('username')}({c.get('contactName')})" for c in contacts))
 
 
 def check_names(session, department_id: str, names: list[str]) -> None:
