@@ -72,13 +72,28 @@ python scripts/online_smoke.py
 
 预期结果：`PASS 40 / FAIL 0` 左右，所有账号登录、业务页面和 OnlyOffice 均正常。
 
-## 5. 跑一条完整前置流程
+## 5. 跑数流程
+
+一条命令只跑一条全链；批量就是按顺序重复执行。每次跑数按以下顺序：
 
 ```powershell
+# 1) 环境自检（只读，约 4 秒）
+python scripts/env_check.py
+
+# 2) 跑前预检（只读）：名字未被占用、兼容预算计划够用、经办人在候选里
+python scripts/probe_online_precheck.py --plan-count 3 --name "医院检验试剂及配套耗材年度框架采购项目"
+
+# 3) 执行全链（每条 5~7 分钟；--plan-count 3 表示一条申请单用 3 个预算计划）
 python scripts/run_full_chain.py `
   --project-name "医院检验试剂及配套耗材年度框架采购项目" `
-  --purchase-method 1
+  --purchase-method 1 --plan-count 3
+
+# 4) 跑后核对（只读）：状态、唯一性、子包/计划数、采购方式、执行经办人
+python scripts/verify_online_result.py --code "<申请单号>" --expect-method 1 --expect-plans 3
 ```
+
+> 跑数不产生文档改动：不写 `PROGRESS.md`、不提交。结果以 `reports/<runId>/report.json`
+> 和运行输出为准。
 
 默认行为：承办干事 `cbbm1`，采购执行经办人“采购办经办人”，失败重试 1 次。
 每条全链约 5~7 分钟；其中约 2 分钟是调研征集截止和论证开始时间的业务等待。
@@ -185,6 +200,7 @@ python scripts/run_full_chain.py `
 - 退出码：成功 `0`，失败 `1`；
 - 成功标准：日志出现 `全链完成：status=9 采购中`；
 - 报告目录：`automation_py/reports/<runId>/`，包含 `report.json` 和 `report.html`；
+  需要留存控制台输出时可加 `| Tee-Object -FilePath reports/<runId>/console.log`；
 - 报告中可查看每个步骤的耗时、状态和失败原因。
 
 运行中以下步骤较慢或可能自动重试，属正常现象：
@@ -216,6 +232,8 @@ python scripts/run_full_chain.py `
 
 - **项目名称必须唯一**：每次运行前确认名称在线上未被使用；不要复用旧名称，否则会出现同名申请，
   影响查询和后续步骤定位。
+- **同名申请会被拦截**：S01 已内置防重，名称已存在（含草稿）时直接报错，并提示改用
+  `--resume --request-code` 续跑，不会重复建单。
 - **不要并发运行多条全链**：全链共用同一批审批账号和业务数据，并发会互相干扰。
 - `HP_ALLOW_ONLINE_WRITES=1` 表示允许在线上测试环境创建/推进真实业务数据，确认授权后再设置。
 - 线上测试数据不会自动清理；如需清理请联系环境管理员。
@@ -232,10 +250,10 @@ HuiZhouAuto/
 │  ├─ flows/             # S01 到 S20 流程
 │  ├─ tests/             # 冒烟、流程和单元测试
 │  ├─ fixtures/files/    # 测试附件
-│  └─ scripts/           # 全链入口、线上冒烟等
+│  └─ scripts/           # 全链入口、跑前预检/跑后核对、线上冒烟
 ├─ docs/                 # 环境切换、采购方式、修复手册
 ├─ analysis/             # 流程分析、开发计划和技术方案
-└─ PROGRESS.md           # 进度记录
+└─ PROGRESS.md           # 能力/环境/已知问题（不含跑数明细）
 ```
 
 更多说明：
