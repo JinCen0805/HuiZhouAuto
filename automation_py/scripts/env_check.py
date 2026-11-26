@@ -175,9 +175,61 @@ def check_draw_mq_bridge() -> str:
 
 
 # ── C. 账号与关键接口 ───────────────────────────────────────
+PE_PREFIX = "/ProcurementExecution"
+_SESSION_CACHE: dict[tuple, object] = {}
+
+
+def get_session(username: str, platform: str, role_keyword: str | None = None):
+    """登录并缓存会话：同一账号一次自检只登录一次；登录失败不缓存，下次重试。"""
+    key = (username, platform, role_keyword)
+    if key not in _SESSION_CACHE:
+        _SESSION_CACHE[key] = login_http(
+            username, CFG.password(username), platform, CFG.base_url, role_keyword=role_keyword)
+    return _SESSION_CACHE[key]
+
+
+def check_pe_health() -> str:
+    """采购执行服务健康检查（匿名可访问）：网关路由存在且服务存活。"""
+    url = CFG.base_url + PE_PREFIX + "/health"
+    resp = requests.get(url, timeout=8, allow_redirects=False)
+    if resp.status_code >= 400:
+        raise RuntimeError(f"HTTP {resp.status_code} {url}")
+    status = ""
+    if resp.text.startswith("{"):
+        status = str((resp.json() or {}).get("status") or "")
+    if status and status.upper() != "UP":
+        raise RuntimeError(f"PE health status={status}")
+    return f"HTTP {resp.status_code} status={status}" if status else f"HTTP {resp.status_code}"
+
+
+def check_pe_api() -> str:
+    """采购执行业务接口：必须用登录态探测。
+
+    线上网关对未登录的业务请求统一回 404（全站 error_page 把鉴权拒绝改写成 404，
+    响应体为空），匿名探测无法区分“路由缺失”和“未登录”，之前的匿名 GET 属误报。
+    S20 采购执行申请依赖这两个只读接口，用 cbbm1 登录态验证。
+    """
+    session = get_session("cbbm1", "采购交易系统", "承办部门经办")
+    details = []
+    for path in ("/purchase/purchaseProject/getPage?current=1&size=1",
+                 "/purchase/purchaseProject/purchaseContactList"):
+        resp = session.api(PE_PREFIX + path)
+        try:
+            body = resp.json() or {}
+        except ValueError:
+            body = {}
+        if resp.status_code != 200 or not body.get("success"):
+            raise RuntimeError(
+                f"HTTP {resp.status_code} success={body.get('success')} {path}：{resp.text[:120]}")
+        if "getPage" in path:
+            details.append(f"getPage total={(body.get('data') or {}).get('total')}")
+        else:
+            details.append(f"contacts={len(body.get('list') or body.get('data') or [])}")
+    return "；".join(details)
+
+
 def check_account(username: str, platform: str, role_keyword: str) -> str:
-    password = CFG.password(username)
-    session = login_http(username, password, platform, CFG.base_url, role_keyword=role_keyword)
+    session = get_session(username, platform, role_keyword)
     if role_keyword not in (session.role or ""):
         raise RuntimeError(f"角色不符：期望包含 {role_keyword!r}，实际 {session.role!r}")
     menu = session.menu_json()
@@ -263,7 +315,10 @@ def run_online_checks() -> int:
     run("登录页", lambda: http_ok("/Register/public/newLogin/user_login_2.html"))
     run("动态菜单服务", lambda: http_ok("/nodeJs/menu_Json"))
     run("专家 mock 已启用", check_mock_enabled)
-    run("采购执行服务", lambda: http_ok("/ProcurementExecution/purchase/purchaseProject/getPage?current=1&size=1"))
+    run("采购执行服务健康", check_pe_health,
+        hint="PE 未启动或网关缺 /ProcurementExecution/ 路由（线上 PE 在 172.16.29.216:8083）")
+    run("采购执行业务接口", check_pe_api,
+        hint="cbbm1 登录态访问 PE 失败：S20 采购执行申请依赖 getPage / purchaseContactList")
     onlyoffice_url = CFG.env("HP_ONLYOFFICE_HEALTH_URL", "http://172.16.29.214:8099/healthcheck")
     run("OnlyOffice 健康检查", lambda: http_ok(onlyoffice_url), required=False,
         hint="确认线上 OnlyOffice 地址可从自动化机器访问")

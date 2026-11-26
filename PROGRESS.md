@@ -262,8 +262,10 @@ S16 按每个预算计划填写审计数量/单价。本地全链均 `status=9 �
 - 15 个预算计划均在第 1 页按兼容口径（货物类/服务类）组合，未触发翻页；
 - 新增只读脚本：`scripts/probe_online_precheck.py`（跑前：PE 鉴权接口 / 名字占用 / 可组合计划数）、
   `scripts/verify_online_result.py`（跑后：状态 / 唯一 / 子包 / 方式 / 审计 / 执行项目核对）；
-- 已知：`env_check.py` 线上分支的“采购执行服务”用匿名 GET 探测返回 404，属误报——
-  PE `/health` UP，鉴权后 `getPage` / `purchaseContactList` 均 200，全链 S20 正常。
+- `env_check.py` 线上分支原“采购执行服务”用匿名 GET 探测恒为 404（网关 `error_page 404 403` 把未登录的
+  鉴权拒绝改写成空 404），属误报；已改为“服务健康（匿名 `/health`）+ 业务接口（cbbm1 登录态
+  `getPage` / `purchaseContactList`）”两项，并复用登录会话（同账号只登录一次）：
+  线上自检 PASS 28 / WARN 0 / FAIL 0，耗时约 4s；密码错误时业务接口项会 FAIL。
 
 ## 2026-11-26 线上十项目四方式（一单三计划三子包，含指定执行经办人）
 
