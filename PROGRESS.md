@@ -115,5 +115,25 @@
 - `env_check.py` 线上分支改“服务健康（匿名）+ 业务接口（登录态）”探测并复用登录会话。
 - 已知口径：项目属性统一用“1 新增项目”（按项目类型映射为维修/维保会触发设备字段校验）；
   议比价（方式 7）执行项目审批后状态为 A7，其他方式为 A6。
-- 线上验证覆盖：六种方式（1/2/3/4/7 议价/7 比价）均跑通“一单三计划三子包”到 status=9；
+- 线上验证覆盖：六种方式（1/2/3/4/7 议价/7 比价）均跑通"一单三计划三子包"到 status=9；
   跑数明细不入库，需要时按项目名在线上查询或用 `verify_online_result.py` 核对。
+
+## 2026-11-28 被控系统同步后的适配与验证（本地）
+
+- 被控系统两次 `sync-repos`：11-27 01:45、11-28 02:51（hospital-procurement 44 个提交、openresty 64、
+  professor / business-approval / procurement-execution / discipline / notify / baseserver / db 若干）；
+  本地库 Liquibase 记录已到 `20261127-004`（前置链路新增列全部存在），本地栈 11-28 17:14 于新代码重启。
+- 代码适配（静态 diff 分析 + 本地实测得出，接口路径/字段/申请单状态枚举均未变）：
+  - S05：分包列表行"确认"按钮被前端 `f0a6274f` 删除，改为编辑器底部 `#confirmBtn`
+    （`PackageManagementPage.confirm_in_editor`，旧版前端同样有该按钮，线上兼容）。
+  - S16：审计状态分发补入 9「主任复核通过，待推送」（HP `605a2d5e`，`workflow_mode=3`），
+    主任复核后、推送前失败时重试/续跑不再报"未识别的审计状态"。
+  - `env_check.py` 纪检鉴权 401 时本地先自动同步 Redis DB9→DB7 再判定；pytest smoke/flows 夹具
+    登录后同步（`local_env.sync_discipline_keys_if_local`），栈重启后回归不再成批 401。
+  - `run_full_chain.py` 输出重定向到文件时 UTF-8 编码兜底（`errors="replace"`），console.log 可完整落盘。
+  - 未改：S11 `startExtract` 不传 `dialMode`（后端缺省 AUTO，且避免线上旧后端不识别该字段）。
+- 验证：`env_check.py` PASS 39 / WARN 1（OnlyOffice 可选）/ FAIL 0；`pytest -q` 50 passed / 4 skipped；
+  六种方式全链均 success / status=9（0 次重试）：
+  1 委托 FW-YWB-CG20260136（332s）、2 比选 FW-YWB-CG20260135、3 竞争谈判 FW-YWB-CG20260137、
+  4 唯一来源 HW-YWB-CG20260222、7 院内议价 FW-YWB-CG20260138（终态 A7）、7 院内比价 HW-YWB-CG20260223（终态 A7）。
+  报告目录 `automation_py/reports/UI自动化-20261128-M{1,2,3,4,7Y,7B}-R01/`。

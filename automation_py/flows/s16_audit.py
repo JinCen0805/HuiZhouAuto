@@ -154,7 +154,10 @@ def s16_audit(hp_session, auditor_session, audit_director_session,
     assert_true(bool(audit_id), f"审计记录缺少 id：{audit}")
     audit_status = int(audit.get("auditStatus") or 0)
 
-    if audit_status in (0, 6, 8):
+    # 2026-11-27 起增加审计状态 9「主任复核通过，待推送」：主任复核通过后、推送前失败时，
+    # 重试/续跑会落在 9；_ensure_draft_and_push 会按行上的 draftSubmissionId/draftReviewPassed
+    # 跳过提交与复核直接推送，因此与 0/6/8 走同一路径。
+    if audit_status in (0, 6, 8, 9):
         _ensure_draft_and_push(hp_session, dept_director_session, audit, ctx["request_code"])
         wait_until(
             lambda: (lambda r: r if r and int(r.get("auditStatus") or 0) == 1 else None)(

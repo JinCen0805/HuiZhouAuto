@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from core import browser as browser_helpers
-from pages.common import click_row_event, find_row_by_text, wait_table_rows
+from pages.common import READY_TIMEOUT_MS, click_row_event, wait_table_rows
 
 MODULE_URL = "/HospitalProcurement/view/packageManagement/index.html"
 MENU_ID = "0000006000002"
@@ -63,8 +63,28 @@ class PackageManagementPage:
                 pass
         self.page.wait_for_timeout(1500)
 
-    def confirm_package(self, request_code: str) -> str:
-        """在列表点击“确认”，处理确认弹窗。"""
-        # 关闭编辑弹窗后列表可能刷新，重新搜索定位
-        click_row_event(self.page, self.frame, request_code, "confirm")
-        return browser_helpers.confirm_dialog(self.page, self.frame)
+    def confirm_in_editor(self, editor_frame, timeout_ms: int = 20000) -> str:
+        """在编辑器底部点击“确认”锁定分包方案，并处理确认弹窗。
+
+        2026-11-27 起分包列表行不再提供“确认”按钮（f0a6274f），确认入口只剩编辑器
+        底部 #confirmBtn；该按钮在旧版前端同样存在，因此本地/线上通用。
+        返回确认弹窗出现的位置（'top' / 'frame'），便于排查。
+        """
+        button = editor_frame.locator("#confirmBtn")
+        button.wait_for(state="visible", timeout=READY_TIMEOUT_MS)
+        try:
+            editor_frame.locator("#confirmBtn:not(.visual-disabled)").first.wait_for(
+                state="visible", timeout=timeout_ms)
+        except Exception as exc:  # noqa: BLE001 - 超时后给出页面提示的原因
+            reason = button.get_attribute("title") or "未知原因"
+            raise LookupError(f"编辑器“确认”按钮不可用：{reason}") from exc
+        button.click()
+        where = browser_helpers.confirm_dialog(self.page, editor_frame)
+        try:
+            editor_frame.locator("#packageStatus", has_text="已确认分包").wait_for(
+                timeout=timeout_ms)
+        except Exception as exc:  # noqa: BLE001
+            msg = browser_helpers.wait_for_msg(self.page, editor_frame, timeout_ms=1500)
+            raise AssertionError(
+                f"点击确认后编辑器未变为“已确认分包”：{msg or '无提示信息'}") from exc
+        return where

@@ -44,3 +44,21 @@ def sync_redis_keys(users: list[str]) -> list[str]:
         )
         synced.append(user)
     return synced
+
+
+# 纪检平台（DB7）校验登录态的账号：纪检主任 / 审计员 / 审计部主任
+DISCIPLINE_USERS = ("jjzr", "sjyj", "sjbzr")
+
+
+def sync_discipline_keys_if_local(cfg) -> list[str]:
+    """本地环境把纪检/审计账号的登录 key 同步到 DB7；非本地或 docker 不可用时返回空列表。
+
+    供 pytest 夹具在角色登录后调用：栈重启后 DB7 没有 key，否则纪检相关用例会集体 401。
+    """
+    if not bool(getattr(cfg, "is_local", False)):
+        return []
+    try:
+        return sync_redis_keys(list(DISCIPLINE_USERS))
+    except Exception as exc:  # noqa: BLE001 - 本地 docker 不可用等情况不阻断测试
+        print(f"[local_env] Redis key 同步跳过：{exc}")
+        return []

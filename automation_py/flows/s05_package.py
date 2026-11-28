@@ -27,11 +27,10 @@ def s05_package(session, ctx: dict) -> dict:
             message=f"新增子包后编辑页未出现子包名 {subpackage_name!r}",
         )
         print(f"[S05] 子包已保存：{subpackage_name}")
+    # 2026-11-27 起列表行无“确认”按钮，改为在编辑器底部确认锁定后再关闭
+    where = page.confirm_in_editor(editor)
+    print(f"[S05] 分包方案已确认锁定（弹窗：{where}）")
     page.close_editor()
-
-    # 关闭编辑弹窗后列表刷新，重新搜索再确认
-    page.search(ctx["project_name"])
-    page.confirm_package(ctx["request_code"])
 
     record = wait_until(
         lambda: (lambda r: r if r and str(r.get("status")) == "7"

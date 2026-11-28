@@ -243,13 +243,25 @@ def check_jjjc_auth() -> str:
     password = CFG.password("jjzr")
     session = login_http("jjzr", password, "纪检监察平台", CFG.base_url,
                          role_keyword="纪检监察主任")
-    resp = session.get("/jjjc/supervise/canManageAssignment", headers={"Accept": "application/json"})
+    path = "/jjjc/supervise/canManageAssignment"
+    resp = session.get(path, headers={"Accept": "application/json"})
+    note = ""
+    if resp.status_code == 401 and CFG.is_local:
+        # 本地栈 registers 写 DB9、discipline 读 DB7；栈重启后 key 未同步时先自愈一次再判定
+        try:
+            from scripts.local_env import sync_redis_keys
+
+            if sync_redis_keys(["jjzr"]):
+                resp = session.get(path, headers={"Accept": "application/json"})
+                note = "（已自动同步 Redis DB9→DB7）"
+        except Exception as exc:  # noqa: BLE001 - docker 不可用时沿用原失败提示
+            note = f"（自动同步失败：{str(exc)[:80]}）"
     if resp.status_code == 401:
-        raise RuntimeError("纪检接口 401：本地 Redis DB 不一致（registers=9 / discipline=7）")
+        raise RuntimeError("纪检接口 401：本地 Redis DB 不一致（registers=9 / discipline=7）" + note)
     body = resp.json() if resp.text.startswith("{") else {}
     if not body.get("success"):
         raise RuntimeError(f"纪检接口异常：{resp.status_code} {resp.text[:200]}")
-    return f"canManage={body.get('canManage')}"
+    return f"canManage={body.get('canManage')}{note}"
 
 
 def check_reserve_api() -> str:

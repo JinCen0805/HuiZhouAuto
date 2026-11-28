@@ -30,9 +30,19 @@ def flow_sessions(flow_browser, config):
         )
         session.open()
         sessions[role] = session
+    _sync_discipline_keys(config)
     yield sessions
     for session in sessions.values():
         session.close()
+
+
+def _sync_discipline_keys(config) -> None:
+    """本地栈 registers 写 Redis DB9、纪检服务读 DB7；登录后同步一次，避免纪检用例 401。"""
+    from scripts.local_env import sync_discipline_keys_if_local
+
+    synced = sync_discipline_keys_if_local(config)
+    if synced:
+        print(f"[flows] 纪检/审计登录 key 已同步到 Redis DB7：{synced}")
 
 
 @pytest.fixture(autouse=True)

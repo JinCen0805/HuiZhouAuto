@@ -65,6 +65,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    # 输出重定向到文件/管道时 Windows 默认用 GBK，编排日志里的 ▶/✓/✗ 会触发
+    # UnicodeEncodeError 直接崩溃；降级为替换字符，保证 console.log 能完整落盘。
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     args = parse_args()
     cfg = Config.load()
     if not cfg.is_local and os.environ.get("HP_ALLOW_ONLINE_WRITES") != "1":
