@@ -4,6 +4,7 @@ from __future__ import annotations
 from api.demand_review_api import DemandReviewApi
 from api.hp_api import get_purchase_request
 from core.assert_helper import assert_true
+from core.step_mode import use_ui
 from flows.common import wait_until
 
 
@@ -24,6 +25,29 @@ def s18_review(applicant_session, director_session, finance_session, audit_sessi
     assert_true(status in (19, 18),
                 f"S18 前置状态应为 19/18，实际 {status}")
     request_uuid = record["uuid"]
+    request_code = record.get("requestCode") or ctx["request_code"]
+
+    if use_ui("S18", ctx):
+        # 采购需求审查管理：干事【发起审查】→ 各审查人【审查】→ 一键通过 → 保存 → 确认通过
+        from pages.demand_review import DemandReviewPage
+
+        if status == 19:
+            DemandReviewPage(applicant_session).initiate(request_code)
+            print("[S18] 已发起需求审查（UI）")
+        for name, session in (("承办部门主任", director_session), ("财务部", finance_session),
+                              ("审计部", audit_session), ("采购部", procurement_session),
+                              ("纪检主任", jjjc_session)):
+            DemandReviewPage(session).review(request_code)
+            print(f"[S18] {name}审查通过（UI）")
+        wait_until(
+            lambda: (lambda r: r if r and int(r.get("status") or 0) == 10 else None)(
+                get_purchase_request(applicant_session, ctx["request_code"], ctx["department_id"])
+            ),
+            timeout_s=30,
+            message="需求审查通过后未进入 10 待分配采购方式",
+        )
+        print("[S18] 三阶段审查通过（UI），status=10（待分配采购方式）OK")
+        return ctx
 
     if status == 19:
         DemandReviewApi(applicant_session).initiate(request_uuid)

@@ -6,6 +6,8 @@ from api.approval_api import ApprovalApi
 from api.execution_api import ExecutionApi
 from api.hp_api import get_purchase_request
 from core.assert_helper import assert_true
+from core.step_mode import use_ui
+from flows.approval_ui import approve_task
 from flows.common import wait_until
 
 
@@ -45,51 +47,62 @@ def s20_execution(applicant_session, director_session, dept_leader_session,
     )
     project_uuid = project["uuid"]
     print(f"[S20] 执行草稿：{project.get('projectCode')} {project.get('projectName')}")
-    exec_api.commit_audit(project_uuid)
+    if use_ui("S20", ctx):
+        # 采购执行申请管理：草稿行【提交审批】→ 确定
+        from pages.execution_apply import ExecutionApplyPage
+
+        state = ExecutionApplyPage(applicant_session).submit(ctx["project_name"])
+        print(f"[S20] 已在执行申请页提交审批（UI），状态：{state}")
+    else:
+        exec_api.commit_audit(project_uuid)
     print("[S20] 已提交执行审批，进入 BT13")
 
-    # 节点1：承办部门主任
-    task = wait_until(lambda: _bt13_task(director_session, project_uuid), timeout_s=30,
-                      message="未找到 BT13 承办部门主任待办")
-    ApprovalApi(director_session).complete(task["id"], "1", "自动化测试-执行申请主任审批")
+    # BT13 五节点：顺序办理；ctx 记录已完成节点，重试/续跑时跳过（已办节点待办会消失）
+    contacts = None
 
-    # 节点2：承办部门分管院领导
-    task = wait_until(lambda: _bt13_task(dept_leader_session, project_uuid), timeout_s=30,
-                      message="未找到 BT13 分管院领导待办")
-    ApprovalApi(dept_leader_session).complete(task["id"], "1", "自动化测试-分管院领导审批")
+    def _handler_user_id() -> tuple[str, str]:
+        nonlocal contacts
+        if contacts is None:
+            contacts = exec_api.contact_list()
+        handler_name = ctx.get("execution_handler") or "采购办经办人"
+        item = next((c for c in contacts
+                     if handler_name in {c.get("contactName"), c.get("username"), c.get("userId")}),
+                    None)
+        assert_true(item is not None,
+                    f"未找到采购执行经办人 {handler_name}；候选："
+                    f"{[c.get('contactName') for c in contacts]}")
+        return item["userId"], str(item.get("contactName") or "")
 
-    # 节点3：采购办主任选采购执行经办人
-    task = wait_until(lambda: _bt13_task(procurement_director_session, project_uuid),
-                      timeout_s=30, message="未找到 BT13 采购办主任待办")
-    contacts = exec_api.contact_list()
-    handler_name = ctx.get("execution_handler") or "采购办经办人"
-    handler = next((item for item in contacts
-                    if handler_name in {
-                        item.get("contactName"), item.get("username"), item.get("userId")
-                    }), None)
-    assert_true(handler is not None,
-                f"未找到采购执行经办人 {handler_name}；候选："
-                f"{[item.get('contactName') for item in contacts]}")
-    approval = ApprovalApi(procurement_director_session)
-    data = {
-        "taskId": task["id"],
-        "formProperties[auditResult]": "1",
-        "comment": "自动化测试-采购办主任审批",
-        "vars[purchaseExecutionHandlerUserId]": handler["userId"],
-    }
-    resp = procurement_director_session.api(
-        "/EbiddingBusinessApproval/workflow/task/complete", method="POST", data=data
-    ).json() or {}
-    assert_true(bool(resp.get("success")), f"采购办主任选人失败：{str(resp)[:400]}")
-    print(f"[S20] 采购办主任已指定执行经办人：{handler.get('contactName')}")
-
-    # 节点4/5：分管领导、分管院领导
-    for label, session in (("分管领导", vice_leader_session),
-                           ("分管院领导", vice_president_session)):
-        task = wait_until(lambda s=session: _bt13_task(s, project_uuid), timeout_s=30,
-                          message=f"未找到 BT13 {label}待办")
-        ApprovalApi(session).complete(task["id"], "1", f"自动化测试-{label}审批")
-        print(f"[S20] {label}审批通过")
+    nodes = [
+        ("node1", "承办部门主任", director_session, "自动化测试-执行申请主任审批", False),
+        ("node2", "承办部门分管院领导", dept_leader_session, "自动化测试-分管院领导审批", False),
+        ("node3", "采购办主任", procurement_director_session, "自动化测试-采购办主任审批", True),
+        ("node4", "分管领导", vice_leader_session, "自动化测试-分管领导审批", False),
+        ("node5", "分管院领导", vice_president_session, "自动化测试-分管院领导审批", False),
+    ]
+    done_nodes = ctx.setdefault("bt13_done", [])
+    for pos, (key, label, session, comment, need_handler) in enumerate(nodes):
+        if key in done_nodes:
+            print(f"[S20] BT13 {label} 已办理过，跳过")
+            continue
+        try:
+            task = wait_until(lambda s=session: _bt13_task(s, project_uuid), timeout_s=25,
+                              message=f"未找到 BT13 {label}待办")
+        except TimeoutError:
+            # 重试场景：本节点已办完，后续节点待办已出现
+            if any(_bt13_task(s, project_uuid) for _, _, s, _, _ in nodes[pos + 1:]):
+                print(f"[S20] BT13 {label} 待办已消失且后续节点已出现，视为已办理，跳过")
+                done_nodes.append(key)
+                continue
+            raise
+        if need_handler:
+            handler_user_id, handler_name = _handler_user_id()
+            approve_task(session, task, comment, handler_user_id=handler_user_id, ctx=ctx)
+            print(f"[S20] 采购办主任已指定执行经办人：{handler_name}")
+        else:
+            approve_task(session, task, comment, ctx=ctx)
+            print(f"[S20] {label}审批通过")
+        done_nodes.append(key)
 
     status = wait_until(
         lambda: (lambda r: r if r and int(r.get("status") or 0) == 9 else None)(

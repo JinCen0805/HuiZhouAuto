@@ -10,6 +10,7 @@ from api.document_api import (
 from api.hp_api import get_purchase_request
 from api.approval_api import ApprovalApi
 from core.assert_helper import assert_true
+from flows.approval_ui import approve_task
 from flows.common import wait_until
 
 
@@ -73,7 +74,7 @@ def s15_requirement(session, director_session, ctx: dict) -> dict:
         timeout_s=30,
         message="未找到 BT14 编制文件审批待办",
     )
-    api.complete(task["id"], "1", "自动化测试-编制文件审批通过")
+    approve_task(director_session, task, "自动化测试-编制文件审批通过", ctx=ctx)
     approved = wait_until(
         lambda: (lambda r: r if r and int(r.get("status") or 0) in (17, 19, 18, 10) else None)(
             get_purchase_request(session, ctx["request_code"], ctx["department_id"])

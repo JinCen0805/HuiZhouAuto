@@ -5,6 +5,7 @@ from api.approval_api import ApprovalApi
 from api.document_api import documents_of_request, second_confirmation
 from api.hp_api import get_purchase_request
 from core.assert_helper import assert_true
+from flows.approval_ui import approve_task
 from flows.common import wait_until
 
 
@@ -41,7 +42,7 @@ def s17_final_confirmation(session, director_session, ctx: dict) -> dict:
         timeout_s=30,
         message="未找到终稿确认 BT14 待办",
     )
-    api.complete(task["id"], "1", "自动化测试-终稿确认通过")
+    approve_task(director_session, task, "自动化测试-终稿确认通过", ctx=ctx)
     wait_until(
         lambda: (lambda r: r if r and int(r.get("status") or 0) == 19 else None)(
             get_purchase_request(session, ctx["request_code"], ctx["department_id"])

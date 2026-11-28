@@ -31,3 +31,12 @@ class MethodApi:
         if not body.get("success"):
             raise RuntimeError(f"提交采购方式失败：{str(body)[:400]}")
         return body.get("data") or ""
+
+    def detail(self, purchase_request_id: str) -> dict:
+        """采购方式分配详情（含 approvalStatus：null/0 草稿、1 审批中、2 驳回待修改、3 审批通过）。"""
+        body = self.session.api(
+            f"{METHOD_PREFIX}/detail?purchaseRequestId={purchase_request_id}"
+        ).json() or {}
+        if not body.get("success"):
+            raise RuntimeError(f"查询采购方式详情失败：{str(body)[:300]}")
+        return body.get("data") or {}

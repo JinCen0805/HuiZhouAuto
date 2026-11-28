@@ -18,6 +18,43 @@ def wait_table_rows(frame, timeout_ms: int = READY_TIMEOUT_MS) -> None:
     )
 
 
+def js_click(locator, timeout_ms: int = READY_TIMEOUT_MS) -> None:
+    """用元素原生 click() 触发点击（绕过 Layui 固定列遮挡/滚动抖动导致的 actionability 超时）。
+
+    Layui 表格的固定列在滚动或表格不溢出时会被隐藏，Playwright 的可点性检查会反复
+    “element is not visible”；jQuery 的委托事件对原生 click() 同样生效，因此直接派发。
+    """
+    locator.first.wait_for(state="attached", timeout=timeout_ms)
+    locator.first.evaluate("el => el.click()")
+
+
+def confirm_or_msg(page, frame=None, timeout_ms: int = 10000) -> tuple[str, str]:
+    """等待“确认框或提示”，二者出现其一即返回：('confirm', '') 或 ('msg', 文案)。
+
+    用于区分“需要二次确认”和“被前端校验拦下并弹了 3 秒提示”两种情况。
+    """
+    deadline = time.time() + timeout_ms / 1000
+    while time.time() < deadline:
+        ok = page.locator(".layui-layer-dialog .layui-layer-btn0")
+        if ok.count() > 0:
+            ok.last.click()
+            return "confirm", ""
+        if frame is not None:
+            fok = frame.locator(".layui-layer-dialog .layui-layer-btn0")
+            if fok.count() > 0:
+                fok.last.click()
+                return "confirm", ""
+        msg = page.locator(".layui-layer-msg")
+        if msg.count() > 0:
+            return "msg", (msg.last.inner_text() or "").strip()
+        if frame is not None:
+            fmsg = frame.locator(".layui-layer-msg")
+            if fmsg.count() > 0:
+                return "msg", (fmsg.last.inner_text() or "").strip()
+        page.wait_for_timeout(200)
+    return "", ""
+
+
 def find_row_by_text(frame, text: str, timeout_ms: int = READY_TIMEOUT_MS):
     """按行文本查找可见表格行（返回 Locator，多匹配取第一个）。"""
     deadline = time.time() + timeout_ms / 1000
