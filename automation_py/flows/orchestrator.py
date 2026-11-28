@@ -82,7 +82,7 @@ def build_steps(sessions: dict) -> list[Step]:
                  [S["supplier1"], S["supplier2"], S["supplier3"]], ctx)),
         Step("S10", "资格性审查（干事初审 + 主任审批）",
              lambda ctx: s10_review(S["applicant"], S["director"], ctx)),
-        Step("S11", "专家抽取（线下+手动+mock 确认）",
+        Step("S11", "专家抽取（线下+手动抽选，手工拨号登记/mock 确认）",
              lambda ctx: s11_extract(S["applicant"], ctx)),
         Step("S13", "线下论证（指定组长+上传报告）",
              lambda ctx: s13_argument(S["applicant"], ctx)),

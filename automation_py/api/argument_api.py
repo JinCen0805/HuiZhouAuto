@@ -69,6 +69,26 @@ class ArgumentApi:
             raise RuntimeError(f"保存勾选专家失败：{str(body)[:500]}")
         return body
 
+    def save_manual_dial_result(self, argument_uuid: str, expert_uuid: str,
+                                decision: str = "AGREE") -> dict:
+        """手工拨号通知：登记某位专家的参与结果（AGREE 参与 / REFUSE 不参与）。
+
+        HP 会同步调用专家库并回写名单；登记齐抽取人数后 extractStatus 直接变为 2，
+        不依赖语音外呼与回传事件。对应页面「拨号登记」按钮（manualDial.html）。
+        """
+        body = self.session.api(
+            f"{ARGUMENT_PREFIX}/saveManualDialResult",
+            method="POST",
+            json={
+                "argumentUuid": argument_uuid,
+                "expertUuid": expert_uuid,
+                "decision": decision,
+            },
+        ).json() or {}
+        if not body.get("success"):
+            raise RuntimeError(f"手工拨号登记失败：{str(body)[:400]}")
+        return body.get("data") or {}
+
     def designate_leader(self, survey_uuid: str, expert_uuid: str) -> dict:
         body = self.session.api(
             f"{ARGUMENT_PREFIX}/designateLeader",

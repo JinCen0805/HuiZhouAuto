@@ -20,6 +20,11 @@ def s13_argument(session, ctx: dict) -> dict:
 
     browser_helpers.close_all_layers(session.page)
     api = SurveyApi(session)
+    # --from S13 续跑时 ctx 没有 survey_project_uuid，先按项目名补齐，保证指定组长走接口
+    if not ctx.get("survey_project_uuid"):
+        project = api.find_project(ctx["project_name"])
+        assert_true(project is not None, f"未找到调研项目：{ctx['project_name']}")
+        ctx["survey_project_uuid"] = project["uuid"]
     page = SurveyArgumentPage(session)
     page.search(ctx["project_name"])
 

@@ -55,8 +55,13 @@ class SurveyArgumentPage:
         if survey_uuid:
             ArgumentApi(self.session).designate_leader(survey_uuid, expert_uuid)
         else:
+            # 页面路径：「设为组长」会弹“确认指定该专家为组长？”二次确认
             button.click()
+            browser_helpers.confirm_dialog(self.page, situation_frame)
             situation_frame.wait_for_timeout(2500)
+            msg = browser_helpers.wait_for_msg(self.page, situation_frame, timeout_ms=3000)
+            if "已指定组长" not in msg:
+                raise AssertionError(f"页面指定组长未成功：{msg or '无提示信息'}")
         close = situation_frame.locator("#closeSit")
         if close.count() > 0:
             close.click()

@@ -47,7 +47,8 @@
 - 页面操作以 `changeView` 打开模块、iframe 定位，弹窗/遮罩统一清理；
 - 混合策略：关键业务节点 API 直调 + 页面校验（需求书创建/保存、审计、审查、方式、执行审批）；
 - 审批通用办理（BT14/BT19/BT6/BT13），支持 formProperties/vars 扩展；
-- 专家抽取：线下 + 手动 + mock 电话确认 + 本地 MQ 桥接；
+- 专家抽取：默认全 UI（规划→勾选→拨号登记）+ 通知方式手工拨号登记；`HP_EXTRACT_MODE=api` 接口直调、
+  `HP_DIAL_MODE=AUTO` 或旧后端自动回落 mock 电话确认；本地需 MQ 桥接；
 - 审计报告：本地用 JWT 回调协议标记已保存（生产由 OnlyOffice 触发）；
 - 全链编排：状态→步骤映射续跑、失败重试、JSON/HTML 报告。
 
@@ -131,9 +132,20 @@
   - `env_check.py` 纪检鉴权 401 时本地先自动同步 Redis DB9→DB7 再判定；pytest smoke/flows 夹具
     登录后同步（`local_env.sync_discipline_keys_if_local`），栈重启后回归不再成批 401。
   - `run_full_chain.py` 输出重定向到文件时 UTF-8 编码兜底（`errors="replace"`），console.log 可完整落盘。
-  - 未改：S11 `startExtract` 不传 `dialMode`（后端缺省 AUTO，且避免线上旧后端不识别该字段）。
+  - S11 改为**全 UI**（默认 `HP_EXTRACT_MODE=ui`）：调研论证列表 → 规划页（线下论证 / 手动抽选 /
+    通知方式）→ 勾选页 → 拨号登记页；通知方式默认**手工拨号**（`HP_DIAL_MODE=MANUAL`），在拨号登记页
+    逐人点「参与」即 `extractStatus=2`，**不再依赖 mock 电话回调**；以 `getDetail.dialMode` 回读为准，
+    旧后端仍为 AUTO 时自动回落 mock 路径；`HP_EXTRACT_MODE=api` 保留接口直调。S11 支持断点续跑
+    （已抽齐/已规划/名单已够分别跳过，只登记未确认专家）。
+  - S13：`--from S13` 续跑时 ctx 无 `survey_project_uuid` 会走页面「设为组长」，该按钮有二次确认弹窗，
+    原兜底未处理导致“指定组长”假成功、论证结果提交被拦“请先指定专家组长”；现缺 uuid 时按项目名
+    补齐走接口，页面兜底也补上确认。
 - 验证：`env_check.py` PASS 39 / WARN 1（OnlyOffice 可选）/ FAIL 0；`pytest -q` 50 passed / 4 skipped；
   六种方式全链均 success / status=9（0 次重试）：
   1 委托 FW-YWB-CG20260136（332s）、2 比选 FW-YWB-CG20260135、3 竞争谈判 FW-YWB-CG20260137、
   4 唯一来源 HW-YWB-CG20260222、7 院内议价 FW-YWB-CG20260138（终态 A7）、7 院内比价 HW-YWB-CG20260223（终态 A7）。
   报告目录 `automation_py/reports/UI自动化-20261128-M{1,2,3,4,7Y,7B}-R01/`。
+- S11 全 UI 复验（2026-11-28 晚）：全新全链 `FW-YWB-CG20260140`（方式 2）success / status=9，
+  S11 规划→勾选→登记 12.8s、0 次重试，步骤合计 302s；另一条 `GC-YWB-CG20260037` 经续跑亦到 status=9。
+  库内核对：`extract_mode=MANUAL / dial_mode=MANUAL / argument_mode=OFFLINE`，3 位专家 `draw_status=2`。
+  报告目录 `automation_py/reports/UI自动化-20261128-M2-UI0{1,2}/`。
