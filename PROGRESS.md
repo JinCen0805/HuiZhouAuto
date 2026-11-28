@@ -149,3 +149,7 @@
   S11 规划→勾选→登记 12.8s、0 次重试，步骤合计 302s；另一条 `GC-YWB-CG20260037` 经续跑亦到 status=9。
   库内核对：`extract_mode=MANUAL / dial_mode=MANUAL / argument_mode=OFFLINE`，3 位专家 `draw_status=2`。
   报告目录 `automation_py/reports/UI自动化-20261128-M2-UI0{1,2}/`。
+- S11 全 UI 下**六种方式复验**（2026-11-28 晚，顺序执行、均 0 次重试、S11 各 13～14.5s）：
+  1 委托 `HW-YWB-CG20260226`（292s）、2 比选 `FW-YWB-CG20260143`、3 竞争谈判 `FW-YWB-CG20260144`、
+  4 唯一来源 `HW-YWB-CG20260227`、7 院内议价 `HW-YWB-CG20260228`（A7）、7 院内比价 `FW-YWB-CG20260145`（A7），
+  全部 success / status=9。报告目录 `automation_py/reports/UI自动化-20261128-M{1,2,3,4,7Y,7B}-UI01/`（M2 为 UI03）。
